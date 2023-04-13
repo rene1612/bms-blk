@@ -57,8 +57,18 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SPI_DATA_STROBE_Pin GPIO_PIN_0
-#define SPI_DATA_STROBE_GPIO_Port GPIOB
+#define SPI1_DATA_STROBE_Pin GPIO_PIN_0
+#define SPI1_DATA_STROBE_GPIO_Port GPIOB
+#define SPI1_OE_Pin GPIO_PIN_1
+#define SPI1_OE_GPIO_Port GPIOB
+#define OneWire_Pin GPIO_PIN_10
+#define OneWire_GPIO_Port GPIOB
+#define LED_GREEN_Pin GPIO_PIN_12
+#define LED_GREEN_GPIO_Port GPIOB
+#define LED_RED_Pin GPIO_PIN_13
+#define LED_RED_GPIO_Port GPIOB
+#define LED_BLUE_Pin GPIO_PIN_14
+#define LED_BLUE_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

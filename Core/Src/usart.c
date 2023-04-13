@@ -207,10 +207,10 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     /**USART3 GPIO Configuration
     PB10     ------> USART3_TX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_10;
+    GPIO_InitStruct.Pin = OneWire_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(OneWire_GPIO_Port, &GPIO_InitStruct);
 
     /* USART3 interrupt Init */
     HAL_NVIC_SetPriority(USART3_IRQn, 0, 0);
@@ -276,7 +276,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
     /**USART3 GPIO Configuration
     PB10     ------> USART3_TX
     */
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_10);
+    HAL_GPIO_DeInit(OneWire_GPIO_Port, OneWire_Pin);
 
     /* USART3 interrupt Deinit */
     HAL_NVIC_DisableIRQ(USART3_IRQn);
