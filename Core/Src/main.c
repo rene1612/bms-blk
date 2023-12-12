@@ -31,6 +31,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <math.h>
 #include "OneWire.h"
 /* USER CODE END Includes */
 
@@ -54,16 +56,61 @@
 /* USER CODE BEGIN PV */
 extern float Temp[MAXDEVICES_ON_THE_BUS];
 uint8_t spi_buffer[3]={0xAA,0xBB,0xCC};
+
+uint8_t main_task_scheduler;
+uint8_t adc_enable_mask;
+
+uint8_t alive_timer;
+uint16_t timer_10ms;
+
+
+
+/**
+ * @var		main_regs
+ * @brief	Registersatz im Ram (Arbeitsregister)
+ * @see		MAIN_REGS
+ * @see		main_ee_regs
+ *
+ */
+_MAIN_REGS main_regs = {
+	//!<RW CTRL Ein-/Ausschalten usw.  (1 BYTE )
+	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALLERT)),
+
+	SYS_OK,
+	STATE_OFF,
+
+	((0x01<<ADC_CH1) | (0x01<<ADC_CH2) | (0x01<<ADC_CH3) | (0x01<<ADC_CH4) | (0x01<<ADC_CH5)),
+
+	ALIVE_TIMEOUT_10MS,
+
+	APP_CAN_BITRATE,
+
+	//ab rel. 0x10 steht die Gerätesignatur und die Softwareversion
+	__DEV_SIGNATURE__,
+	__SW_RELEASE__,
+	__SW_RELEASE_DATE__,
+};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+uint8_t process_10Ms_Timer(void);
+void 	AllertHandler(void);
+uint8_t check_AllertThrescholds(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int _write(int file, char *ptr, int len)
+ {
+	 int DataIdx;
+	 for (DataIdx = 0; DataIdx < len; DataIdx++)
+	 {
+		 ITM_SendChar(*ptr++);
+	 }
+	 return len;
+ }
 
 /* USER CODE END 0 */
 
@@ -74,6 +121,11 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	main_task_scheduler = 0;
+	//adc_enable_mask =
+	//adc_enable_mask = (0x01<<ADC_CH5);
+	alive_timer = 0;
+	timer_10ms = 0;
 
   /* USER CODE END 1 */
 
@@ -107,7 +159,22 @@ int main(void)
   MX_I2C1_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  HAL_CAN_Start(&hcan);
+
+  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+  {
+	  Error_Handler();
+  }
+
   get_ROMid();
+
+  // Start timer
+  HAL_TIM_Base_Start_IT(&htim4);
+
+
+  HAL_SPI_Transmit_IT(&hspi1, spi_buffer, 3);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -117,9 +184,37 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  get_Temperature();
-	  HAL_SPI_Transmit_IT(&hspi1, spi_buffer, 3);
-	  HAL_Delay (2000);
+
+	  if (main_task_scheduler & PROCESS_NEEY)
+	  {
+		  if (!process_NEEY())
+		  {
+			  //check_AllertThrescholds();
+			  main_task_scheduler &= ~PROCESS_NEEY;
+		  }
+	  }
+
+	  if (main_task_scheduler & PROCESS_CAN)
+	  {
+		  if (!process_CAN())
+			  main_task_scheduler &= ~PROCESS_CAN;
+	  }
+
+	  if (main_task_scheduler & PROCESS_10_MS_TASK)
+	  {
+		  if (!process_10Ms_Timer())
+			  main_task_scheduler &= ~PROCESS_10_MS_TASK;
+	  }
+
+	  if (main_task_scheduler & PROCESS_100_MS_TASK)
+	  {
+		  main_task_scheduler &= ~PROCESS_100_MS_TASK;
+
+		  get_Temperature();
+
+		  HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
+	  }
+
   }
   /* USER CODE END 3 */
 }
@@ -175,6 +270,98 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+//*****************************************************************************
+//
+//! wird alle 10ms aufgerufen, getriggert durch den Timer4-overrun
+//!
+//! \fn uint8_t process_10Ms_Timer(void)
+//!
+//!
+//! \return None.
+//
+//*****************************************************************************
+uint8_t check_AllertThrescholds(void)
+{
+
+
+	return 0;
+}
+
+
+//*****************************************************************************
+//
+//! wird alle 10ms aufgerufen, getriggert durch den Timer4-overrun
+//!
+//! \fn uint8_t process_10Ms_Timer(void)
+//!
+//!
+//! \return None.
+//
+//*****************************************************************************
+uint8_t process_10Ms_Timer(void)
+{
+	if (alive_timer)
+	{
+		if (--alive_timer == 0)
+		{
+			//kritisch
+			alive_timer = main_regs.alive_timeout;
+		}
+	}
+
+	if (!(++timer_10ms % 10))
+	{
+		main_task_scheduler |= PROCESS_100_MS_TASK;
+	}
+
+	return 0;
+}
+
+
+//*****************************************************************************
+//
+//! wird im Fehlerfall aufgerufen und aktivert die vollständige Abschaltung
+//!
+//! \fn void AllertHandler(void)
+//!
+//!
+//! \return None.
+//
+//*****************************************************************************
+void AllertHandler(void)
+{
+	//send Something?
+
+	if (main_regs.ctrl & (1<<REG_CTRL_ACTIVATE))
+	{
+		//HAL_GPIO_WritePin(RELAY_2_GPIO_Port, RELAY_2_Pin, GPIO_PIN_SET);
+
+		while(1){}
+	}
+}
+
+
+//*****************************************************************************
+//
+//! Callback: timer has rolled over
+//!
+//! \fn void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+//!
+//!
+//! \return None.
+//
+//*****************************************************************************
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  // Check which version of the timer triggered this callback and toggle LED
+  if (htim == &htim4 )
+  {
+    main_task_scheduler |= PROCESS_10_MS_TASK;
+  }
+}
+
+
 
 /* USER CODE END 4 */
 

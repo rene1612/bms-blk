@@ -26,6 +26,121 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+
+
+#define NEEY_CHANNEL_COUNT		24
+#define NEEY_PACKET_START_TX	0x55AA
+#define NEEY_PACKET_START_RX	0xAA55
+#define NEEY_PACKET_END			0xFF
+
+
+/**
+  * Packet-Type defines
+  * */
+#define	NEEY_PACKET_TYPE_info 			0x01
+#define	NEEY_PACKET_TYPE_data 			0x02
+#define	NEEY_PACKET_TYPE_unknown		0x04
+#define	NEEY_PACKET_TYPE_cmd 			0x05
+
+
+/**
+  * Sub-Type defines
+  * */
+#define	NEEY_SUB_TYPE_cellcount 		0x01
+#define	NEEY_SUB_TYPE_StartVol 			0x02
+#define	NEEY_SUB_TYPE_MaxBalCurrent 	0x03
+#define	NEEY_SUB_TYPE_SleepVol 			0x04
+#define	NEEY_SUB_TYPE_Buzzer 			0x14
+#define	NEEY_SUB_TYPE_BatType 			0x15
+#define	NEEY_SUB_TYPE_BatCap 			0x16
+#define	NEEY_SUB_TYPE_EquVol 			0x17
+#define	NEEY_SUB_TYPE_run 				0x0D
+
+
+/**
+  * Bettery-Type defines
+  * */
+#define	NEEY_BATTERY_TYPE_NCM 			0x01
+#define	NEEY_BATTERY_TYPE_LFP 			0x02
+#define	NEEY_BATTERY_TYPE_LTO 			0x03
+#define	NEEY_BATTERY_TYPE_PBAC			0x04
+
+
+/**
+  * CMD-ON/OFF-Type defines
+  * */
+#define	NEEY_ON 						0x01
+#define	NEEY_OFF 						0x00
+
+
+#pragma pack(push,1)
+
+/**
+  * @brief  NEEY Data Structure definition (from NEEY to MC)
+  */
+typedef struct
+{
+  uint16_t 	PacketStart;    					/*!< Start of the data packet, always 0x55AA */
+
+  uint16_t 	Address;							/*!< adress??? */
+
+  uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
+
+  uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 300) */
+
+  uint8_t 	PacketCount;						/*!< wird einfach für jedes empf. Datenpaket hochgezählt */
+
+  float 	CellVoltage[NEEY_CHANNEL_COUNT];	/*!< Cell-voltage */
+
+  uint8_t	dummy1[97];							/*!< the big unkonwn 1  */
+
+  float 	AmtVol;								/*!< pack voltage of all cells  */
+
+  float 	AveVol;								/*!< average voltage of all cells  */
+
+  float 	DiffVol;							/*!< diff-voltage max cell volt. - min cell volt.  */
+
+  float		Unknown1;							/*!< dont konw  */
+
+  float 	BalCurrent;							/*!< current balance current  */
+
+  float 	Temperatur;							/*!< neey temperatur  */
+
+  uint8_t	dummy2[73];							/*!< the big unkonwn 1  */
+
+  uint8_t	Checksum;							/*!< einfache 8-Bit Überlauf-Prüfsumme */
+
+  uint8_t	PacketEnd;							/*!< End of the data packet, always 0xFF */
+
+} _NEEY_RecDataTypeDef;
+
+
+/**
+  * @brief  NEEY Data Structure definition (from MC to NEEY)
+  */
+typedef struct
+{
+  uint16_t 	PacketStart;    					/*!< Start of the data packet, always 0xAA55 */
+
+  uint16_t 	Address;							/*!< adress??? */
+
+  uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
+
+  uint8_t 	PacketSubType;						/*!< SubType, @seeSub-Type defines */
+
+  uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 20) */
+
+  uint32_t 	data;								/*!< data to be send to neey (format see subtype */
+
+  uint8_t	Checksum;							/*!< einfache 8-Bit Xor-Prüfsumme */
+
+  uint8_t	PacketEnd;							/*!< End of the data packet, always 0xFF */
+
+} _NEEY_SendDataTypeDef;
+
+#pragma pack(pop)
+
+
 /**
   * @brief  NEEY Configuration Structure definition
   */
@@ -44,7 +159,7 @@ typedef struct
 /**
   * @brief  Time Handle Structure definition
   */
-typedef struct __RTC_HandleTypeDef
+typedef struct __NEEY_HandleTypeDef
 {
   //NEEY_TypeDef                 *Instance;  /*!< Register base address    */
 
@@ -57,13 +172,13 @@ typedef struct __RTC_HandleTypeDef
   //__IO HAL_RTCStateTypeDef    State;      /*!< Time communication state */
 
 #if (USE_HAL_NEEY_REGISTER_CALLBACKS == 1)
-  void (* AlarmAEventCallback)(struct __RTC_HandleTypeDef *hrtc);           /*!< RTC Alarm A Event callback         */
+  void (* AlarmAEventCallback)(struct __RTC_HandleTypeDef *hrtc);           /*!< Neey Alarm A Event callback         */
 
-  void (* Tamper1EventCallback)(struct __RTC_HandleTypeDef *hrtc);          /*!< RTC Tamper 1 Event callback        */
+  void (* Tamper1EventCallback)(struct __RTC_HandleTypeDef *hrtc);          /*!< Neey Tamper 1 Event callback        */
 
-  void (* MspInitCallback)(struct __RTC_HandleTypeDef *hrtc);               /*!< RTC Msp Init callback              */
+  void (* MspInitCallback)(struct __RTC_HandleTypeDef *hrtc);               /*!< Neey Msp Init callback              */
 
-  void (* MspDeInitCallback)(struct __RTC_HandleTypeDef *hrtc);             /*!< RTC Msp DeInit callback            */
+  void (* MspDeInitCallback)(struct __RTC_HandleTypeDef *hrtc);             /*!< Neey Msp DeInit callback            */
 
 #endif /* (USE_HAL_NEEY_REGISTER_CALLBACKS) */
 
