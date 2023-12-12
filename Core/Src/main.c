@@ -18,20 +18,18 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "adc.h"
 #include "can.h"
 #include "crc.h"
 #include "dma.h"
-#include "i2c.h"
 #include "rtc.h"
 #include "spi.h"
 #include "usart.h"
-#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "OneWire.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,8 +50,61 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+//UART_HandleTypeDef huart2;
+extern DMA_HandleTypeDef hdma_usart2_rx;
+
 extern float Temp[MAXDEVICES_ON_THE_BUS];
-uint8_t spi_buffer[3]={0xAA,0xBB,0xCC};
+uint8_t spi_buffer[3]={0x00,0x00,0x00};
+
+CAN_TxHeaderTypeDef   TxHeader;
+uint8_t               TxData[8];
+uint32_t              TxMailbox;
+
+#define UART2_RX_DATA_SIZE	512
+#define UART2_RX_BUF_SIZE	272
+uint8_t	RxBuf[UART2_RX_BUF_SIZE];
+uint8_t RxDataUART2[UART2_RX_DATA_SIZE];
+
+uint16_t oldPos=0;
+uint16_t newPos=0;
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+	if (huart->Instance == USART2)
+	{
+		oldPos = newPos;  // Update the last position before copying new data
+
+		/* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
+		 * This is to maintain the circular buffer
+		 * The old data in the main buffer will be overlapped
+		 */
+		if (oldPos+Size > UART2_RX_DATA_SIZE)  // If the current position + new data size is greater than the main buffer
+		{
+			uint16_t datatocopy = UART2_RX_DATA_SIZE-oldPos;  // find out how much space is left in the main buffer
+			memcpy ((uint8_t *)RxDataUART2+oldPos, RxBuf, datatocopy);  // copy data in that remaining space
+
+			oldPos = 0;  // point to the start of the buffer
+			memcpy ((uint8_t *)RxDataUART2, (uint8_t *)RxBuf+datatocopy, (Size-datatocopy));  // copy the remaining data
+			newPos = (Size-datatocopy);  // update the position
+		}
+
+		/* if the current position + new data size is less than the main buffer
+		 * we will simply copy the data into the buffer and update the position
+		 */
+		else
+		{
+			memcpy ((uint8_t *)RxDataUART2+oldPos, RxBuf, Size);
+			newPos = Size+oldPos;
+		}
+
+
+		/* start the DMA again */
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart2, (uint8_t *) RxBuf, UART2_RX_BUF_SIZE);
+		__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+
+	}
+}
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,12 +153,22 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_CRC_Init();
-  MX_USB_DEVICE_Init();
-  MX_ADC1_Init();
-  MX_I2C1_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   get_ROMid();
+
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.StdId = 0x446;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.DLC = 5;
+
+  TxData[0] = 50;
+  //TxData[1] = 0xAA;
+
+  HAL_CAN_Start(&hcan);
+
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart2, RxBuf, UART2_RX_BUF_SIZE);
+  __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -119,7 +180,27 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  get_Temperature();
 	  HAL_SPI_Transmit_IT(&hspi1, spi_buffer, 3);
-	  HAL_Delay (2000);
+	  HAL_GPIO_WritePin(GPIOB, SPI1_DATA_STROBE_Pin, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOB, LED_GREEN_Pin, GPIO_PIN_SET);
+	  HAL_Delay(500);
+	  HAL_GPIO_WritePin(GPIOB, SPI1_DATA_STROBE_Pin, GPIO_PIN_RESET);
+
+	  //HAL_UART_Receive (&huart2, RxDataUART2, 32, 1000);
+
+	  HAL_GPIO_WritePin(GPIOB, LED_GREEN_Pin, GPIO_PIN_RESET);
+	  HAL_Delay (500);
+	  HAL_GPIO_WritePin(GPIOB, LED_RED_Pin, GPIO_PIN_SET);
+	  HAL_Delay (500);
+	  HAL_GPIO_WritePin(GPIOB, LED_RED_Pin, GPIO_PIN_RESET);
+
+
+	  memcpy ((void *)&TxData[1], (void*)&Temp[0], sizeof(float));
+
+	  if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+	  {
+	     Error_Handler ();
+	  }
+
   }
   /* USER CODE END 3 */
 }
@@ -137,10 +218,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
@@ -163,11 +243,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_ADC
-                              |RCC_PERIPHCLK_USB;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV128;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();

@@ -23,7 +23,7 @@
 #define ONEWIRE_RECALL_E2 0xB8
 
 #ifndef MAXDEVICES_ON_THE_BUS
-#define MAXDEVICES_ON_THE_BUS 22  // maximum planned number of devices on the bus
+#define MAXDEVICES_ON_THE_BUS 23  // maximum planned number of devices on the bus
 #endif
 
 #define DS18B20 0x28  //код семейсва датчика 

@@ -61,7 +61,6 @@ void CAN1_RX1_IRQHandler(void);
 void SPI1_IRQHandler(void);
 void USART2_IRQHandler(void);
 void USART3_IRQHandler(void);
-void USBWakeUp_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
