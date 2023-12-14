@@ -39,6 +39,12 @@ extern "C" {
 extern uint8_t main_task_scheduler;
 extern uint8_t alive_timer;
 
+typedef enum
+{
+	ACK = 0x11,
+	NACK= 0x13
+}_REPLAY_TYPE;
+
 
 typedef enum
 {

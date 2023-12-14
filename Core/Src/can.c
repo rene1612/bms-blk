@@ -21,6 +21,19 @@
 #include "can.h"
 
 /* USER CODE BEGIN 0 */
+#include "main.h"
+
+CAN_TxHeaderTypeDef	TxHeader, ReplayHeader;
+uint8_t				CanTxData[8];
+uint32_t            TxMailbox;
+uint8_t				can_task_scheduler;
+CAN_RxHeaderTypeDef RxHeader;
+uint8_t				can_replay_msg;
+
+uint8_t             CanRxData[8];
+
+CAN_FilterTypeDef 	canfilterconfig;
+
 
 /* USER CODE END 0 */
 
@@ -54,6 +67,30 @@ void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+  can_task_scheduler = PROCESS_NO_TASK;
+
+  TxHeader.DLC = 5;
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.StdId = BMS_BLK_CAN_ID;
+  TxHeader.RTR = CAN_RTR_DATA;
+
+  ReplayHeader.DLC = 2;
+  ReplayHeader.IDE = CAN_ID_STD;
+  ReplayHeader.StdId = BMS_BLK_CAN_ID;
+  ReplayHeader.RTR = CAN_RTR_DATA;
+
+  canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+  canfilterconfig.FilterBank = 13;  // which filter bank to use from the assigned ones
+  canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+  canfilterconfig.FilterIdHigh = 0x446<<5;
+  canfilterconfig.FilterIdLow = 0;
+  canfilterconfig.FilterMaskIdHigh = 0x446<<5;
+  canfilterconfig.FilterMaskIdLow = 0x0000;
+  canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  canfilterconfig.SlaveStartFilterBank = 14;  // how many filters to assign to the CAN1 (master can)
+
+  HAL_CAN_ConfigFilter(&hcan, &canfilterconfig);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -117,14 +154,7 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8|GPIO_PIN_9);
 
     /* CAN1 interrupt Deinit */
-  /* USER CODE BEGIN CAN1:USB_LP_CAN1_RX0_IRQn disable */
-    /**
-    * Uncomment the line below to disable the "USB_LP_CAN1_RX0_IRQn" interrupt
-    * Be aware, disabling shared interrupt may affect other IPs
-    */
-    /* HAL_NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn); */
-  /* USER CODE END CAN1:USB_LP_CAN1_RX0_IRQn disable */
-
+    HAL_NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
     HAL_NVIC_DisableIRQ(CAN1_RX1_IRQn);
   /* USER CODE BEGIN CAN1_MspDeInit 1 */
 
@@ -133,5 +163,122 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 }
 
 /* USER CODE BEGIN 1 */
+uint8_t	process_CAN(void)
+{
 
+	uint8_t sys_reg;
+	//uint16_t reg;
+
+	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_ADC_DATA)
+	{
+			if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
+			{
+
+				if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK)
+				{
+					Error_Handler ();
+				}
+			}
+			else
+				return can_task_scheduler;
+
+			can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_ADC_DATA;
+
+		//can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_ADC_DATA;
+		//return can_task_scheduler;
+	}
+
+
+	if (can_task_scheduler & PROCESS_CAN_ON_MSG)
+	{
+		switch (CanRxData[0])
+		{
+		case ALIVE_CMD:
+			alive_timer = main_regs.alive_timeout;
+			break;
+
+		case SYS_RESET_CMD:
+			//printf("SYS_RESET\n");
+			break;
+
+		case SYS_BOOT_CMD:
+			//printf("SYS_BOOT\n");
+			break;
+
+		case SYS_READ_REG_CMD:
+			//printf("ADC_READ_REG_CMD\n");
+			sys_reg = CanRxData[1];
+
+			if (sys_reg < sizeof(main_regs))
+			{
+				CanTxData[0] = REPLAY_DATA_CMD;
+				CanTxData[1] = sys_reg;
+				CanTxData[2] = *(((uint8_t *)&main_regs)+sys_reg);
+				ReplayHeader.DLC = 3;
+			}
+			else
+			{
+				CanTxData[0] = REPLAY_AKC_NACK_CMD;
+				CanTxData[1] = NACK;
+				ReplayHeader.DLC = 2;
+			}
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
+		case SYS_WRITE_REG_CMD:
+			//printf("WRITE_REG_CMD\n");
+			sys_reg = CanRxData[1];
+
+			if (sys_reg < sizeof(main_regs))
+			{
+				*(((uint8_t *)&main_regs)+sys_reg) = CanRxData[2];
+				CanTxData[1] = ACK;
+			}
+			else
+			{
+				CanTxData[1] = NACK;
+			}
+			ReplayHeader.DLC = 2;
+			CanTxData[0] = REPLAY_AKC_NACK_CMD;
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
+		default:
+			break;
+		}
+		can_task_scheduler &= ~PROCESS_CAN_ON_MSG;
+	}
+
+
+	if (can_task_scheduler & PROCESS_CAN_SEND_REPLAY)
+	{
+		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
+		{
+			if (HAL_CAN_AddTxMessage(&hcan, &ReplayHeader, CanTxData, &TxMailbox) != HAL_OK)
+			{
+				Error_Handler ();
+			}
+
+			can_task_scheduler &= ~PROCESS_CAN_SEND_REPLAY;
+		}
+	}
+
+	return can_task_scheduler;
+}
+
+
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, CanRxData) != HAL_OK)
+	{
+		Error_Handler();
+	}
+
+	if ((RxHeader.StdId == 0x446))
+	{
+		can_task_scheduler |= PROCESS_CAN_ON_MSG;
+    	main_task_scheduler |= PROCESS_CAN;
+	}
+}
 /* USER CODE END 1 */

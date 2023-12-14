@@ -35,13 +35,23 @@ extern "C" {
 extern CAN_HandleTypeDef hcan;
 
 /* USER CODE BEGIN Private defines */
+#define BMS_BLK_CAN_ID		0x488
+
+
+
+extern uint8_t				can_task_scheduler;
+
+
+#define PROCESS_CAN_SEND_NEW_ADC_DATA 	0x01
+#define PROCESS_CAN_ON_MSG				0x02
+#define PROCESS_CAN_SEND_REPLAY			0x04
 
 /* USER CODE END Private defines */
 
 void MX_CAN_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+uint8_t		process_CAN(void);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
