@@ -32,6 +32,7 @@ extern "C" {
 #define NEEY_PACKET_START_TX	0x55AA
 #define NEEY_PACKET_START_RX	0xAA55
 #define NEEY_PACKET_END			0xFF
+#define NEEY_ADDR				0x0011
 
 
 /**
@@ -42,6 +43,13 @@ extern "C" {
 #define	NEEY_PACKET_TYPE_unknown		0x04
 #define	NEEY_PACKET_TYPE_cmd 			0x05
 
+
+typedef enum {
+	info =		0x01,
+	data =		0x02,
+	unknown =	0x04,
+	cmd	=		0x05,
+}_NEEY_PKT_TYPE;
 
 /**
   * Sub-Type defines
@@ -74,12 +82,14 @@ extern "C" {
 
 
 /**
-  * CMD-ON/OFF-Type defines
+  * Neey Task-Scheduler defines
   * */
 #define PROCESS_NEEY_NO_TASK			0x00
-#define PROCESS_NEEY_SEND					0x01
-#define PROCESS_NEEY_					0x02
-#define PROCESS_NEEY_					0x04
+#define PROCESS_NEEY_SEND				0x01
+#define PROCESS_NEEY_DATA				0x02
+#define PROCESS_NEEY_AT					0x04
+#define PROCESS_NEEY_ALIVE				0x10
+#define PROCESS_NEEY_INFO				0x20
 
 
 typedef enum
@@ -89,6 +99,73 @@ typedef enum
 	RUN_MODE,
 	NEEY_MODE_END
 }_NEEY_STATE;
+
+typedef enum
+{
+	SCAN_PKT_START,
+	READ_HEADER,
+	READ_PKT_DATA,
+}_NEEY_RX_TRANSFER_STATE;
+
+
+
+
+/**
+  * @brief  NEEY Data Structure definition ()
+  */
+typedef struct
+{
+	uint16_t					rx_byte_count;    					/*!< Start of the data packet, always 0x55AA */
+	_NEEY_RX_TRANSFER_STATE		state;
+} _NEEY_RX_TRANSFER;
+
+
+/**
+  * @brief  NEEY Data Structure definition ()
+  */
+typedef struct
+{
+	char			NeeyDevType[16];
+	char			NeeyVersions[24];					/*!< string mit versionsnummern HW...,ZH....,V....  */
+	char			NeeyMFD[12];						/*!< string mit dem Manufacturing Date YYYYMMDD  */
+} _NEEY_INFO;
+
+
+/**
+  * @brief  NEEY Data Structure definition ()
+  */
+typedef struct
+{
+	uint16_t		voltage;
+	uint16_t		resistance;					/*!< string mit versionsnummern HW...,ZH....,V....  */
+} _NEEY_CELL_DATA;
+
+
+/**
+  * @brief  NEEY Data Structure definition ()
+  */
+typedef struct
+{
+	uint16_t 	AmtVol;								/*!< pack voltage of all cells  */
+	uint16_t 	AveVol;								/*!< average voltage of all cells  */
+	uint16_t 	DiffVol;							/*!< diff-voltage max cell volt. - min cell volt.  */
+	int16_t 	BalCurrent;							/*!< current balance current  */
+	int16_t 	Temperatur;							/*!< neey temperatur  */
+} _NEEY_DEV_DATA;
+
+/**
+  * @brief  NEEY Data Structure definition ()
+  */
+typedef struct
+{
+	_NEEY_RX_TRANSFER 		cur_rx_transfer;    					/*!< Start of the data packet, always 0x55AA */
+	_NEEY_INFO				neey_dev_info;
+	_NEEY_CELL_DATA			cell_data[NEEY_CHANNEL_COUNT];
+	_NEEY_DEV_DATA			neey_dev_data;
+	_NEEY_STATE				neey_state;
+	uint8_t					data_pkt_counter;
+	uint8_t					data_lock;
+} _NEEY_CTRL;
 
 
 #pragma pack(push,1)
@@ -106,11 +183,30 @@ typedef struct
 
   uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 300) */
 
+} _NEEY_RX_HEADER;
+
+/**
+  * @brief  NEEY Data Structure definition (from NEEY to MC)
+  * @length	0x12C (300 Byte)
+  * @brief	we be transmitted by neey every 1 second
+  */
+typedef struct
+{
+  uint16_t 	PacketStart;    					/*!< Start of the data packet, always 0x55AA */
+
+  uint16_t 	Address;							/*!< adress??? */
+
+  uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
+
+  uint8_t 	PacketSubType;						/*!< SubType, @seeSub-Type defines */
+
+  uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 300) */
+
   uint8_t 	PacketCount;						/*!< wird einfach für jedes empf. Datenpaket hochgezählt */
 
   float 	CellVoltage[NEEY_CHANNEL_COUNT];	/*!< Cell-voltage */
 
-  float		CellValue[NEEY_CHANNEL_COUNT];		/*!< the big unkonwn, strange float values releated to cell ca. 0,26???   */
+  float		CellValue[NEEY_CHANNEL_COUNT];		/*!< the big unkonwn, strange float values releated to cell ca. 0,26, maybe line resistance in [Ohm]???   */
 
   float 	AmtVol;								/*!< pack voltage of all cells  */
 
@@ -128,7 +224,7 @@ typedef struct
 
   uint8_t	dummy[69];							/*!< the big unkonwn 2  */
 
-  uint8_t	Checksum;							/*!< einfache 8-Bit Überlauf-Prüfsumme */
+  uint8_t	Checksum;							/*!< simple 8-Bit Überlauf-Prüfsumme */
 
   uint8_t	PacketEnd;							/*!< End of the data packet, always 0xFF */
 
@@ -137,6 +233,7 @@ typedef struct
 
 /**
   * @brief  NEEY Dev Info Structure definition (from NEEY to MC)
+  * @length	0x12C (100 Byte)
   */
 typedef struct
 {
@@ -145,6 +242,8 @@ typedef struct
   uint16_t 	Address;							/*!< adress??? */
 
   uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
+
+  uint8_t 	PacketSubType;						/*!< SubType, @seeSub-Type defines */
 
   uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 100) */
 
@@ -166,6 +265,7 @@ typedef struct
 
 /**
   * @brief  NEEY Data Structure definition (from MC to NEEY)
+  * @length	0x14 (20 Byte)
   */
 typedef struct
 {
@@ -235,7 +335,7 @@ typedef struct __NEEY_HandleTypeDef
 
 extern NEEY_HandleTypeDef hneey;
 
-
+extern _NEEY_CTRL neey_ctrl;
 
 void MX_NEEY_Init(void);
 
