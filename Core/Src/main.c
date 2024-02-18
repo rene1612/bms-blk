@@ -21,7 +21,7 @@
 #include "can.h"
 #include "crc.h"
 #include "dma.h"
-#include "rtc.h"
+//#include "rtc.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -66,7 +66,7 @@ __attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] =
 __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
 		__SW_RELEASE__,
 		__SW_RELEASE_DATE__,
-		0x0000000000000000,
+		0x3cd7450ab698ad24,
 		"no tag"
 };
 
@@ -87,10 +87,10 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		0,						//dummy
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt.txt"
+//		#include "temp_sensor_lt.txt"
 	},
 	{	//lf280k_qr_info
-		#include "lf280k_qr.txt"
+// 		#include "lf280k_qr.txt"
 	},
 };
 
@@ -185,7 +185,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_CAN_Init();
-  MX_RTC_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
