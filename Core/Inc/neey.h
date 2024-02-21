@@ -128,6 +128,14 @@ typedef struct
 	char			NeeyDevType[16];
 	char			NeeyVersions[24];					/*!< string mit versionsnummern HW...,ZH....,V....  */
 	char			NeeyMFD[12];						/*!< string mit dem Manufacturing Date YYYYMMDD  */
+	uint8_t			CellCount;
+	float			StartVol;
+	float			MaxBalCurrent;
+	float			SleepVol;
+	uint8_t			Buzzer;
+	uint8_t			BatType;
+	uint16_t		BatCap;
+	float			EquVol;
 } _NEEY_INFO;
 
 
@@ -175,13 +183,15 @@ typedef struct
   */
 typedef struct
 {
-  uint16_t 	PacketStart;    					/*!< Start of the data packet, always 0x55AA */
+	  uint16_t 	PacketStart;    					/*!< Start of the data packet, always 0x55AA */
 
-  uint16_t 	Address;							/*!< adress??? */
+	  uint16_t 	Address;							/*!< adress??? */
 
-  uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
+	  uint8_t 	PacketType;							/*!< Type, 0x02 (Daten), 0x01 (info?), 0x04 (???), 0x05 (CMD?)*/
 
-  uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 300) */
+	  uint8_t 	PacketSubType;						/*!< SubType, @seeSub-Type defines */
+
+	  uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 100) */
 
 } _NEEY_RX_HEADER;
 
@@ -253,7 +263,7 @@ typedef struct
 
   char		NeeyMFD[12];						/*!< string mit dem Manufacturing Date YYYYMMDD  */
 
-  uint8_t	dummy[38];							/*!< the big unkonwn 2  */
+  uint8_t	dummy[38];							/*!< the big unkonwn (maybe and hopefully the current config???)  */
 
   uint8_t	Checksum;							/*!< einfache 8-Bit Überlauf-Prüfsumme */
 
@@ -279,7 +289,7 @@ typedef struct
 
   uint16_t 	PacketLength;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 20) */
 
-  uint8_t 	data[10];								/*!< data to be send to neey (format see subtype */
+  uint8_t 	data[10];							/*!< data to be send to neey (format see subtype */
 
   uint8_t	Checksum;							/*!< einfache 8-Bit Xor-Prüfsumme */
 

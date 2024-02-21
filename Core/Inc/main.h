@@ -156,7 +156,7 @@ typedef enum
  	uint8_t		auto_run;
  	uint16_t	cell_cpacity;
  	uint8_t		data_send_intervall;	//send intervall in 500ms steps
- 	uint8_t		temp;					//to have 4 Byte alignment
+ 	uint8_t		config_at_start;		//send config to neey at start
 } _NEEY_CONFIG_DATA;
 
  /**

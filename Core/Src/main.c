@@ -84,13 +84,13 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		0,						//auto_run
 		280,					//cell_cpacity
 		2,						//send intervall in 500ms steps
-		0,						//dummy
+		1,						//config_at_start
 	},
 	{	//temp_sensor_lookup_table
-//		#include "temp_sensor_lt.txt"
+		#include "temp_sensor_lt.txt"
 	},
 	{	//lf280k_qr_info
-// 		#include "lf280k_qr.txt"
+ 		#include "lf280k_qr.txt"
 	},
 };
 

@@ -15,34 +15,36 @@
   *
   ******************************************************************************
   */
+
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include <stdio.h>
 #include "neey.h"
 #include "string.h"
 #include "usart.h"
+#include "can.h"
+
+
+#define UART2_RX_BUF_SIZE	(sizeof(_NEEY_RecDataTypeDef)+2)
 
 
 NEEY_HandleTypeDef hneey;
 
 uint8_t neey_task_scheduler;
 
-
 //UART_HandleTypeDef huart2;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 
-//#define UART2_RX_DATA_SIZE	512
-#define UART2_RX_BUF_SIZE	(sizeof(_NEEY_RecDataTypeDef)+2)
 uint8_t	RxBuf[UART2_RX_BUF_SIZE];
-//uint8_t RxDataUART2[UART2_RX_DATA_SIZE];
-//uint16_t oldPos=0;
-//uint16_t newPos=0;
 const char ConnectString[]={'+','C','O','N','N','E','C','T','E','D',0x0D,0x0A,0x00};
 const char DisConnectString[]={'+','D','I','S','C','O','N','N','E','C','T','E','D',0x0D,0x0A,0x00};
 const char ATString[]={'A','T',0x0D,0x0A,0x00};
 const char ATStringOK[]={'O','K',0x0D,0x0A,0x00};
 
 _NEEY_CTRL neey_ctrl;
+
+
+
 
 uint8_t neey_start_DMA (void){
 	HAL_StatusTypeDef returnedERR=HAL_OK;
@@ -56,54 +58,40 @@ uint8_t neey_start_DMA (void){
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
+	_NEEY_RX_HEADER* p_hdr = (_NEEY_RX_HEADER *)RxBuf;
+
 	if (huart->Instance == USART2)
 	{
-//		if (neey_ctrl.neey_state == AT_MODE) {
-//
-//		}
 		neey_ctrl.cur_rx_transfer.rx_byte_count = Size;
 
-		if (Size >= sizeof(_NEEY_RecDataTypeDef)) {//so we have a fulle data packet?
-		  main_task_scheduler |= PROCESS_NEEY;
-		  neey_task_scheduler |= PROCESS_NEEY_DATA;
-		} else if (Size >= sizeof(_NEEY_RecDevInfoTypeDef)) {
+		if (Size == sizeof(_NEEY_RecDataTypeDef)) {//so we have a full data packet?
+			if (p_hdr->PacketType==data) {
+			  main_task_scheduler |= PROCESS_NEEY;
+			  neey_task_scheduler |= PROCESS_NEEY_DATA;
+			}else
+				neey_start_DMA();
+		}
+		else if (Size == sizeof(_NEEY_RecDevInfoTypeDef)) {//so we have an info packet?
+			if (p_hdr->PacketType==info) {
 			  main_task_scheduler |= PROCESS_NEEY;
 			  neey_task_scheduler |= PROCESS_NEEY_INFO;
+			}else
+				neey_start_DMA();
+		}
+		else { //if the size does not match we ignore the data and start dma again
 
-		} else {
+		// maybe we got cmd-response from neey here???
 
+		//		if (neey_ctrl.neey_state == AT_MODE) {
+		//
+		//		}
 			neey_start_DMA();
 		}
-
-//		oldPos = newPos;  // Update the last position before copying new data
-//
-//		/* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
-//		 * This is to maintain the circular buffer
-//		 * The old data in the main buffer will be overlapped
-//		 */
-//		if (oldPos+Size > UART2_RX_DATA_SIZE)  // If the current position + new data size is greater than the main buffer
-//		{
-//			uint16_t datatocopy = UART2_RX_DATA_SIZE-oldPos;  // find out how much space is left in the main buffer
-//			memcpy ((uint8_t *)RxDataUART2+oldPos, RxBuf, datatocopy);  // copy data in that remaining space
-//
-//			oldPos = 0;  // point to the start of the buffer
-//			memcpy ((uint8_t *)RxDataUART2, (uint8_t *)RxBuf+datatocopy, (Size-datatocopy));  // copy the remaining data
-//			newPos = (Size-datatocopy);  // update the position
-//		}
-//
-//		/* if the current position + new data size is less than the main buffer
-//		 * we will simply copy the data into the buffer and update the position
-//		 */
-//		else
-//		{
-//			memcpy ((uint8_t *)RxDataUART2+oldPos, RxBuf, Size);
-//			newPos = Size+oldPos;
-//		}
-
 	}
 }
 
-/* NEEY init function */
+
+/* NEEY helper function */
 void send_to_neey(uint16_t addr, _NEEY_PKT_TYPE pkt_type, uint8_t sub_type, uint8_t* p_data, uint8_t len)
 {
 	_NEEY_SendDataTypeDef neey_data_pkt;
@@ -124,13 +112,13 @@ void send_to_neey(uint16_t addr, _NEEY_PKT_TYPE pkt_type, uint8_t sub_type, uint
 	memset(&neey_data_pkt.data, 0x00, sizeof(neey_data_pkt.data));
 	memcpy (&neey_data_pkt.data, p_data, len);
 
-	for(index=0; index<18;index++)
+	for(index=0; index<18; index++)
 		cs ^= *(p_pkt+index);
 
 	neey_data_pkt.Checksum = cs;
-	neey_data_pkt.PacketEnd = 0xFF;
+	neey_data_pkt.PacketEnd = NEEY_PACKET_END;
 
-	HAL_UART_Transmit(&huart2, &neey_data_pkt, neey_data_pkt.PacketLength, 1000);
+	HAL_UART_Transmit(&huart2, (uint8_t *)&neey_data_pkt, neey_data_pkt.PacketLength, 1000);
 }
 
 
@@ -154,7 +142,7 @@ void MX_NEEY_Init(void)
 //	HAL_UART_Transmit(&huart2, ATStringOK, strlen(ATStringOK), 1000);
 //	HAL_Delay(20);
 
-	HAL_UART_Transmit(&huart2, ConnectString, strlen(ConnectString), 1000);
+	HAL_UART_Transmit(&huart2, (uint8_t *)ConnectString, strlen(ConnectString), 1000);
 	HAL_Delay(20);
 
 	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_info, 0, init_buffer , 10);
@@ -164,24 +152,6 @@ void MX_NEEY_Init(void)
 	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
 //	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
 
-	if (main_regs.cfg_regs.neey_cfg_data.cell_count) { //do we need to send neey config (from app config) to neey??
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_cellcount, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_count , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_count));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_StartVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.start_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.start_voltage));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_MaxBalCurrent, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.max_balance_current , sizeof(main_regs.cfg_regs.neey_cfg_data.max_balance_current));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_SleepVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.sleep_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.sleep_voltage));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_Buzzer, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.buzzer , sizeof(main_regs.cfg_regs.neey_cfg_data.buzzer));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatType, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_type , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_type));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatCap, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_cpacity , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_cpacity));
-		HAL_Delay(20);
-		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_EquVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.equalization_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.equalization_voltage));
-	}
 //	hneey.Instance = NEEY;
 //hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
 //hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
@@ -191,7 +161,6 @@ void MX_NEEY_Init(void)
 //	}
 
 }
-
 
 
 void HAL_NEEY_MspInit(NEEY_HandleTypeDef* neeyHandle)
@@ -216,6 +185,55 @@ void HAL_NEEY_MspDeInit(NEEY_HandleTypeDef* neeyHandle)
     /* Peripheral clock disable */
 //    __HAL_RCC_RTC_DISABLE();
   }
+}
+
+
+void check_and_send_config_data_NEEY(void) {
+
+	//todo: better to check the current config from neey direct
+	//neey sends info packet after connect message (maybe config is included there)???
+	if (main_regs.cfg_regs.neey_cfg_data.config_at_start) { //do we need to send neey config (from app config) to neey??
+
+		if (neey_ctrl.neey_dev_info.Buzzer==0 || neey_ctrl.neey_dev_info.Buzzer!=main_regs.cfg_regs.neey_cfg_data.buzzer) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_Buzzer, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.buzzer , sizeof(main_regs.cfg_regs.neey_cfg_data.buzzer));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.CellCount==0 || neey_ctrl.neey_dev_info.CellCount!=main_regs.cfg_regs.neey_cfg_data.cell_count) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_cellcount, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_count , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_count));
+			//maybe the neey sends answer to command and better to wait for it???
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.StartVol==0 || neey_ctrl.neey_dev_info.StartVol!=main_regs.cfg_regs.neey_cfg_data.start_voltage) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_StartVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.start_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.start_voltage));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.MaxBalCurrent==0 || neey_ctrl.neey_dev_info.MaxBalCurrent!=main_regs.cfg_regs.neey_cfg_data.max_balance_current) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_MaxBalCurrent, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.max_balance_current , sizeof(main_regs.cfg_regs.neey_cfg_data.max_balance_current));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.SleepVol==0 || neey_ctrl.neey_dev_info.SleepVol!=main_regs.cfg_regs.neey_cfg_data.sleep_voltage) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_SleepVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.sleep_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.sleep_voltage));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.BatType==0 || neey_ctrl.neey_dev_info.BatType!=main_regs.cfg_regs.neey_cfg_data.cell_type) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatType, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_type , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_type));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.BatCap==0 || neey_ctrl.neey_dev_info.BatCap!=main_regs.cfg_regs.neey_cfg_data.cell_cpacity) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatCap, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_cpacity , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_cpacity));
+			HAL_Delay(100);
+		}
+
+		if (neey_ctrl.neey_dev_info.EquVol==0 || neey_ctrl.neey_dev_info.EquVol!=main_regs.cfg_regs.neey_cfg_data.equalization_voltage) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_EquVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.equalization_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.equalization_voltage));
+		}
+	}
 }
 
 
@@ -251,13 +269,12 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		neey_ctrl.neey_dev_data.Temperatur = (int16_t)(p_rec_data_pkt->Temperatur1*100);
 		neey_ctrl.neey_dev_data.BalCurrent = (int16_t)(p_rec_data_pkt->BalCurrent*1000);
 
+		//todo
+		// get the other data that are unknown by now
+		// f.e. the cells that are in balancing process
+
 		neey_ctrl.data_pkt_counter++;
-		if (!(neey_ctrl.data_pkt_counter % main_regs.cfg_regs.neey_cfg_data.data_send_intervall)){
-		  //main_task_scheduler |= PROCESS_CAN;
-		//	can_task_scheduler |= PROCESS_CAN_SEND_NEW_NEEY_DATA;
-		  //neey_task_scheduler |= PROCESS_NEEY_INFO;
-			//send the data via can-bus
-		}
+
 		neey_ctrl.data_lock = 0;
 	}
 
@@ -279,7 +296,6 @@ uint8_t	check_info_pkt_NEEY(void* p_pkt_buf) {
 	for(index=0; index < sizeof(_NEEY_RecDevInfoTypeDef)-2; index++)
 		cs += *(p_pkt+index);
 
-
 	if(p_rec_info_pkt->Checksum != cs || p_rec_info_pkt->PacketEnd != NEEY_PACKET_END)
 		return HAL_ERROR;
 
@@ -287,9 +303,20 @@ uint8_t	check_info_pkt_NEEY(void* p_pkt_buf) {
 	memcpy(neey_ctrl.neey_dev_info.NeeyMFD, p_rec_info_pkt->NeeyMFD, sizeof(p_rec_info_pkt->NeeyMFD));
 	memcpy(neey_ctrl.neey_dev_info.NeeyVersions, p_rec_info_pkt->NeeyVersions, sizeof(p_rec_info_pkt->NeeyVersions));
 
+	neey_ctrl.neey_dev_info.CellCount 		= p_rec_info_pkt->dummy[0];
+	neey_ctrl.neey_dev_info.StartVol 		= p_rec_info_pkt->dummy[1];
+	neey_ctrl.neey_dev_info.MaxBalCurrent 	= p_rec_info_pkt->dummy[1];
+	neey_ctrl.neey_dev_info.SleepVol 		= p_rec_info_pkt->dummy[2];
+	neey_ctrl.neey_dev_info.Buzzer 			= p_rec_info_pkt->dummy[3];
+	neey_ctrl.neey_dev_info.BatType 		= p_rec_info_pkt->dummy[4];
+	neey_ctrl.neey_dev_info.BatCap 			= p_rec_info_pkt->dummy[5];
+	neey_ctrl.neey_dev_info.EquVol 			= p_rec_info_pkt->dummy[6];
+
 	return HAL_OK;
 
 }
+
+
 
 uint8_t	process_NEEY(void)
 {
@@ -298,21 +325,43 @@ uint8_t	process_NEEY(void)
 	{
 
 		if(check_data_pkt_NEEY((void*)RxBuf) == HAL_OK) {
-			neey_start_DMA ();
+
+			//check if we need to send new neey data via can
+			if (!(neey_ctrl.data_pkt_counter % main_regs.cfg_regs.neey_cfg_data.data_send_intervall)) {
+
+				main_task_scheduler |= PROCESS_CAN;
+				can_task_scheduler |= PROCESS_CAN_SEND_NEW_NEEY_DATA;
+			  //neey_task_scheduler |= PROCESS_NEEY_INFO;
+				//send the data via can-bus
+			}
 		}
+
+		neey_start_DMA ();	//start over with serial rec of neey data
 
 		neey_task_scheduler &= ~PROCESS_NEEY_DATA;
 	}
+
 
 	if (neey_task_scheduler & PROCESS_NEEY_INFO)
 	{
 
 		if(check_info_pkt_NEEY((void*)RxBuf) == HAL_OK) {
-			neey_start_DMA ();
+
+			//what to do with new and valid neey-info data
+
+			//send via can???
+
+			//send config to neey if info data differs from cur neey-conig
+
+			check_and_send_config_data_NEEY();
+
 		}
+
+		neey_start_DMA ();	//start over with serial rec of neey data
 
 		neey_task_scheduler &= ~PROCESS_NEEY_INFO;
 	}
+
 
 	return neey_task_scheduler;
 }
