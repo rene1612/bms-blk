@@ -74,17 +74,17 @@ __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
 ////alles was persistend (im Flash) gespeichert werden soll, z.b. Kalibration, ...
 __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_regs = {
 	{	//neey_config_data
-		4.0,					//max_balance_current
-		3.45,					//start_voltage
-		0.005,					//equalization_voltage
-		3.25,					//sleep_voltage
-		22,						//cell_count
-		NEEY_BATTERY_TYPE_LFP,	//cell_type
-		0,						//buzzer
-		0,						//auto_run
-		280,					//cell_cpacity
-		2,						//send intervall in 500ms steps
-		1,						//config_at_start
+		4.0,						//max_balance_current
+		3.45,						//start_voltage
+		0.005,						//equalization_voltage
+		3.25,						//sleep_voltage
+		22,							//cell_count
+		NEEY_BATTERY_TYPE_LFP,		//cell_type
+		NEEY_BUZZER_TYPE_SINGLE,	//buzzer
+		0,							//auto_run
+		280,						//cell_cpacity
+		2,							//send intervall in 500ms steps
+		1,							//config_at_start
 	},
 	{	//temp_sensor_lookup_table
 		#include "temp_sensor_lt.txt"

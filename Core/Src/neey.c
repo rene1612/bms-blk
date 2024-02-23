@@ -64,19 +64,39 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	{
 		neey_ctrl.cur_rx_transfer.rx_byte_count = Size;
 
-		if (Size == sizeof(_NEEY_RecDataTypeDef)) {//so we have a full data packet?
-			if (p_hdr->PacketType==data) {
-			  main_task_scheduler |= PROCESS_NEEY;
-			  neey_task_scheduler |= PROCESS_NEEY_DATA;
-			}else
-				neey_start_DMA();
-		}
-		else if (Size == sizeof(_NEEY_RecDevInfoTypeDef)) {//so we have an info packet?
-			if (p_hdr->PacketType==info) {
-			  main_task_scheduler |= PROCESS_NEEY;
-			  neey_task_scheduler |= PROCESS_NEEY_INFO;
-			}else
-				neey_start_DMA();
+		if (Size >= sizeof(_NEEY_RX_HEADER)) {
+
+			switch(p_hdr->PacketType) {
+
+				case data:
+					if (Size == sizeof(_NEEY_RecDataTypeDef)) {//so we have a full data packet?
+						  main_task_scheduler |= PROCESS_NEEY;
+						  neey_task_scheduler |= PROCESS_NEEY_DATA;
+					}else
+						neey_start_DMA();
+					break;
+
+				case info:
+					if (Size == sizeof(_NEEY_RecDevInfoTypeDef)) {//so we have an info packet?
+					  main_task_scheduler |= PROCESS_NEEY;
+					  neey_task_scheduler |= PROCESS_NEEY_INFO;
+					}else
+						neey_start_DMA();
+					break;
+
+				case param:
+					if (Size == sizeof(_NEEY_RecDevParmTypeDef)) {//so we have an info packet?
+					  main_task_scheduler |= PROCESS_NEEY;
+					  neey_task_scheduler |= PROCESS_NEEY_PARAM;
+					}else
+						neey_start_DMA();
+					break;
+
+				default:
+					neey_start_DMA();
+					break;
+			}
+
 		}
 		else { //if the size does not match we ignore the data and start dma again
 
@@ -146,11 +166,8 @@ void MX_NEEY_Init(void)
 	HAL_Delay(20);
 
 	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_info, 0, init_buffer , 10);
-	HAL_Delay(20);
-	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_unknown, 0, init_buffer , 10);
-	HAL_Delay(20);
-	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
-//	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+	//HAL_Delay(100);
+
 
 //	hneey.Instance = NEEY;
 //hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
@@ -189,6 +206,8 @@ void HAL_NEEY_MspDeInit(NEEY_HandleTypeDef* neeyHandle)
 
 
 void check_and_send_config_data_NEEY(void) {
+
+	uint8_t init_buffer[10]={};
 
 	//todo: better to check the current config from neey direct
 	//neey sends info packet after connect message (maybe config is included there)???
@@ -232,8 +251,14 @@ void check_and_send_config_data_NEEY(void) {
 
 		if (neey_ctrl.neey_dev_info.EquVol==0 || neey_ctrl.neey_dev_info.EquVol!=main_regs.cfg_regs.neey_cfg_data.equalization_voltage) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_EquVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.equalization_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.equalization_voltage));
+			HAL_Delay(100);
 		}
 	}
+
+	//start cmd for sending neey-data???
+	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+//	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+
 }
 
 
@@ -303,23 +328,46 @@ uint8_t	check_info_pkt_NEEY(void* p_pkt_buf) {
 	memcpy(neey_ctrl.neey_dev_info.NeeyMFD, p_rec_info_pkt->NeeyMFD, sizeof(p_rec_info_pkt->NeeyMFD));
 	memcpy(neey_ctrl.neey_dev_info.NeeyVersions, p_rec_info_pkt->NeeyVersions, sizeof(p_rec_info_pkt->NeeyVersions));
 
-	neey_ctrl.neey_dev_info.CellCount 		= p_rec_info_pkt->dummy[0];
-	neey_ctrl.neey_dev_info.StartVol 		= p_rec_info_pkt->dummy[1];
-	neey_ctrl.neey_dev_info.MaxBalCurrent 	= p_rec_info_pkt->dummy[1];
-	neey_ctrl.neey_dev_info.SleepVol 		= p_rec_info_pkt->dummy[2];
-	neey_ctrl.neey_dev_info.Buzzer 			= p_rec_info_pkt->dummy[3];
-	neey_ctrl.neey_dev_info.BatType 		= p_rec_info_pkt->dummy[4];
-	neey_ctrl.neey_dev_info.BatCap 			= p_rec_info_pkt->dummy[5];
-	neey_ctrl.neey_dev_info.EquVol 			= p_rec_info_pkt->dummy[6];
+	return HAL_OK;
+
+}
+
+
+uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
+
+	uint8_t cs=0;
+	uint16_t index;
+	uint8_t* p_pkt = (uint8_t*)p_pkt_buf;
+	_NEEY_RecDevParmTypeDef* p_rec_param_pkt = (_NEEY_RecDevParmTypeDef*)p_pkt_buf;
+
+
+	if (p_rec_param_pkt->pkt_header.PacketStart != NEEY_PACKET_START_RX)
+		return HAL_ERROR;
+
+	for(index=0; index < sizeof(_NEEY_RecDevParmTypeDef)-2; index++)
+		cs += *(p_pkt+index);
+
+	if(p_rec_param_pkt->Checksum != cs || p_rec_param_pkt->PacketEnd != NEEY_PACKET_END)
+		return HAL_ERROR;
+
+
+	neey_ctrl.neey_dev_info.CellCount 		= p_rec_param_pkt->cell_count;
+	neey_ctrl.neey_dev_info.StartVol 		= p_rec_param_pkt->start_voltage;
+	neey_ctrl.neey_dev_info.MaxBalCurrent 	= p_rec_param_pkt->max_balance_current;
+	neey_ctrl.neey_dev_info.SleepVol 		= p_rec_param_pkt->sleep_voltage;
+	neey_ctrl.neey_dev_info.Buzzer 			= p_rec_param_pkt->buzzer;
+	neey_ctrl.neey_dev_info.BatType 		= p_rec_param_pkt->bat_type;
+	neey_ctrl.neey_dev_info.BatCap 			= p_rec_param_pkt->bat_capacity;
+	neey_ctrl.neey_dev_info.EquVol 			= p_rec_param_pkt->equ_voltage;
 
 	return HAL_OK;
 
 }
 
 
-
 uint8_t	process_NEEY(void)
 {
+	uint8_t init_buffer[10]={};
 
 	if (neey_task_scheduler & PROCESS_NEEY_DATA)
 	{
@@ -348,13 +396,10 @@ uint8_t	process_NEEY(void)
 		if(check_info_pkt_NEEY((void*)RxBuf) == HAL_OK) {
 
 			//what to do with new and valid neey-info data
-
 			//send via can???
-
 			//send config to neey if info data differs from cur neey-conig
 
-			check_and_send_config_data_NEEY();
-
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_param, 0, init_buffer , 10);
 		}
 
 		neey_start_DMA ();	//start over with serial rec of neey data
@@ -362,6 +407,23 @@ uint8_t	process_NEEY(void)
 		neey_task_scheduler &= ~PROCESS_NEEY_INFO;
 	}
 
+
+	if (neey_task_scheduler & PROCESS_NEEY_PARAM)
+	{
+
+		if(check_param_pkt_NEEY((void*)RxBuf) == HAL_OK) {
+
+			//what to do with new and valid neey-info data
+			//send via can???
+			//send config to neey if info data differs from cur neey-conig
+
+			check_and_send_config_data_NEEY();
+		}
+
+		neey_start_DMA ();	//start over with serial rec of neey data
+
+		neey_task_scheduler &= ~PROCESS_NEEY_PARAM;
+	}
 
 	return neey_task_scheduler;
 }

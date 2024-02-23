@@ -52,7 +52,7 @@ void MX_CAN_Init(void)
   hcan.Instance = CAN1;
   hcan.Init.Prescaler = pDevConfig->app_can_bitrate;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_2TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
@@ -113,6 +113,7 @@ void MX_CAN_Init(void)
 
 }
 
+
 void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -153,6 +154,7 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
   }
 }
 
+
 void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -179,27 +181,26 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
   }
 }
 
+
 /* USER CODE BEGIN 1 */
 uint8_t	process_CAN(void)
 {
-
 	uint8_t sys_reg;
 	//uint16_t reg;
 
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_NEEY_DATA)
 	{
-			if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
+		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
+		{
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK)
 			{
-
-				if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK)
-				{
-					Error_Handler ();
-				}
+				Error_Handler ();
 			}
-			else
-				return can_task_scheduler;
+		}
+		else
+			return can_task_scheduler;
 
-			can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_NEEY_DATA;
+		can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_NEEY_DATA;
 
 		//can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_ADC_DATA;
 		//return can_task_scheduler;
@@ -292,7 +293,6 @@ uint8_t	process_CAN(void)
 
 	return can_task_scheduler;
 }
-
 
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)

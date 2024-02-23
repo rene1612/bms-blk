@@ -40,14 +40,14 @@ extern "C" {
   * */
 #define	NEEY_PACKET_TYPE_info 			0x01
 #define	NEEY_PACKET_TYPE_data 			0x02
-#define	NEEY_PACKET_TYPE_unknown		0x04
+#define	NEEY_PACKET_TYPE_param			0x04
 #define	NEEY_PACKET_TYPE_cmd 			0x05
 
 
 typedef enum {
 	info =		0x01,
 	data =		0x02,
-	unknown =	0x04,
+	param =		0x04,
 	cmd	=		0x05,
 }_NEEY_PKT_TYPE;
 
@@ -75,6 +75,14 @@ typedef enum {
 
 
 /**
+  * Buzzer-Type defines
+  * */
+#define	NEEY_BUZZER_TYPE_NC 			0x00
+#define	NEEY_BUZZER_TYPE_SHUT 			0x01
+#define	NEEY_BUZZER_TYPE_SINGLE 		0x02
+#define	NEEY_BUZZER_TYPE_LOOP 			0x03
+
+/**
   * CMD-ON/OFF-Type defines
   * */
 #define	NEEY_ON 						0x01
@@ -90,6 +98,8 @@ typedef enum {
 #define PROCESS_NEEY_AT					0x04
 #define PROCESS_NEEY_ALIVE				0x10
 #define PROCESS_NEEY_INFO				0x20
+#define PROCESS_NEEY_PARAM				0x40
+#define PROCESS_NEEY_TIMER				0x80
 
 
 typedef enum
@@ -243,7 +253,7 @@ typedef struct
 
 /**
   * @brief  NEEY Dev Info Structure definition (from NEEY to MC)
-  * @length	0x12C (100 Byte)
+  * @length	0x64 (100 Byte)
   */
 typedef struct
 {
@@ -271,6 +281,38 @@ typedef struct
 
 } _NEEY_RecDevInfoTypeDef;
 
+
+/**
+  * @brief  NEEY Dev Parms Structure definition (from NEEY to MC)
+  * @length	0x64 (100 Byte)
+  */
+typedef struct
+{
+	_NEEY_RX_HEADER		pkt_header;
+
+	uint8_t				cell_count;
+	float				start_voltage;
+	float				max_balance_current;
+	float				sleep_voltage;
+
+	uint8_t				dummy1;
+
+	uint8_t				buzzer;
+	uint8_t				bat_type;
+	uint16_t 			bat_capacity;						/*!< Länge des gesamten Datenpacketes (eigentlich immer 100) */
+
+	uint8_t				dummy2;
+	uint8_t				dummy3;
+
+	float				equ_voltage;
+
+	uint8_t				empty[66];
+
+	uint8_t				Checksum;							/*!< einfache 8-Bit Überlauf-Prüfsumme */
+
+	uint8_t				PacketEnd;							/*!< End of the data packet, always 0xFF */
+
+} _NEEY_RecDevParmTypeDef;
 
 
 /**
