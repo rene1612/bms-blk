@@ -255,6 +255,20 @@ void check_and_send_config_data_NEEY(void) {
 		}
 	}
 
+	//timeout???
+//	  uint32_t tickstart;
+//	  /* Get tick */
+//	  tickstart = HAL_GetTick();
+//
+//	  /* Wait initialisation acknowledge */
+//	  while ((hcan->Instance->MSR & CAN_MSR_INAK) == 0U)
+//	  {
+//	    if ((HAL_GetTick() - tickstart) > CAN_TIMEOUT_VALUE)
+//	    {
+//	      /* Update error code */
+//	      return HAL_ERROR;
+//	    }
+
 	//start cmd for sending neey-data???
 	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
 //	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
