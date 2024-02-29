@@ -55,7 +55,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-extern float Temp[MAXDEVICES_ON_THE_BUS];
 uint8_t main_task_scheduler;
 uint8_t adc_enable_mask;
 uint8_t alive_timer;

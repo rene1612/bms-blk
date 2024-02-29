@@ -26,7 +26,7 @@ extern UART_HandleTypeDef huart3;
 #define MAXDEVICES_ON_THE_BUS 23
 
 /*********************************************************************************************/
-float Temp[MAXDEVICES_ON_THE_BUS];
+int16_t Temp[MAXDEVICES_ON_THE_BUS];
 
 uint8_t devices;
 OneWire ow;
@@ -441,11 +441,13 @@ void get_Temperature (void)
 		case DS18B20:
 			// будет возвращено значение предыдущего измерения!
 			t = readTemperature(&ow, &ow.ids[i], 1);
-			Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			Temp[i] = (int16_t)t.inCelsus*10 + t.frac;
 			break;
 		case DS18S20:
 			t = readTemperature(&ow, &ow.ids[i], 1);
-			Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			Temp[i] = (int16_t)t.inCelsus*10 + t.frac;
 			break;
 		case 0x00:
 			break;

@@ -33,6 +33,8 @@
 #define WIRE_1    0xff //ответ
 #define OW_READ   0xff
 
+extern int16_t Temp[MAXDEVICES_ON_THE_BUS];
+
 typedef struct {
   int8_t inCelsus;
   uint8_t frac;

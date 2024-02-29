@@ -186,12 +186,26 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 uint8_t	process_CAN(void)
 {
 	uint8_t sys_reg;
-	//uint16_t reg;
+	//int16_t temperature;
 
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_NEEY_DATA)
 	{
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
 		{
+
+			TxHeader.DLC=7;
+			CanTxData[0] = 0x00;
+			CanTxData[1] = (uint8_t)neey_ctrl.cell_data[0].voltage;
+			CanTxData[2] = (uint8_t)(neey_ctrl.cell_data[0].voltage>>8);
+			CanTxData[3] = (uint8_t)neey_ctrl.cell_data[0].resistance;
+			CanTxData[4] = (uint8_t)(neey_ctrl.cell_data[0].resistance>>8);
+
+			//temperature = (int16_t)(Temp[0]*100);
+			CanTxData[5] = (uint8_t)Temp[0];
+			CanTxData[6] = (uint8_t)(Temp[0]>>8);
+
+
+
 			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK)
 			{
 				Error_Handler ();
