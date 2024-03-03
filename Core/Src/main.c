@@ -355,6 +355,8 @@ uint8_t process_10Ms_Timer(void)
 		}
 	}
 
+	process_PBalancer();
+
 	if (!(++timer_10ms % 10))
 	{
 		main_task_scheduler |= PROCESS_100_MS_TASK;

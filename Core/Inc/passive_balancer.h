@@ -27,6 +27,7 @@ extern "C" {
 #include "main.h"
 
 
+#define PB_MAX_CHANNEL MAX_LF280K_CELL_COUNT
 
 typedef enum
 {
@@ -35,6 +36,19 @@ typedef enum
 	PB_MODE_END
 }_PBALANCER_STATE;
 
+/**
+ * @struct	REG
+ * @brief	Registersatz des Controllers.
+ *
+ * @note	Der Registersatz wird im RAM und im EEProm gehalten
+ */
+ typedef struct
+ {
+	 uint8_t	time_index;				//10ms index of running pb
+	 uint32_t	ch_ebable_mask;
+	 uint8_t	ch_val[PB_MAX_CHANNEL];
+	 uint8_t	last_spi_buf[3];
+ }_PB_CTRL_STRUCT;
 
 
 void PBalancer_init(void);
