@@ -61,15 +61,12 @@ void PBalancer_init(void)
 void PBalancer_set(uint8_t channel, uint8_t value)
 {
 
-	assert(channel>=PB_MAX_CHANNEL);
+	assert(channel<PB_MAX_CHANNEL);
 
 	pb_ctrl.ch_val[channel] = value;
 
 	if(value) {
 		pb_ctrl.ch_ebable_mask |= 1<<channel;
-	}
-	else {
-		pb_ctrl.ch_ebable_mask &= ~(1<<channel);
 	}
 }
 
@@ -92,10 +89,15 @@ uint8_t	process_PBalancer(void)
 
 			if (pb_ctrl.ch_ebable_mask & 1<<ch) {
 
-				if (!(pb_ctrl.time_index > pb_ctrl.ch_val[ch])) {
-					//set
-					//ch_mask |= (1<<(ch%8));
-					spi_buffer[(ch/8)] |= (1<<(ch%8));
+				if (pb_ctrl.ch_val==0) {
+					pb_ctrl.ch_ebable_mask &= ~(1<<ch);
+				}else {
+
+					if (!(pb_ctrl.time_index > pb_ctrl.ch_val[ch])) {
+						//set
+						//ch_mask |= (1<<(ch%8));
+						spi_buffer[(ch/8)] |= (1<<(ch%8));
+					}
 				}
 			}
 		}
@@ -109,7 +111,7 @@ uint8_t	process_PBalancer(void)
 			result = HAL_SPI_Transmit_IT(&hspi1, spi_buffer, 3);
 
 			HAL_GPIO_WritePin(SPI1_DATA_STROBE_GPIO_Port, SPI1_DATA_STROBE_Pin, GPIO_PIN_SET);
-			HAL_Delay(20);
+			HAL_Delay(1);
 			HAL_GPIO_WritePin(SPI1_DATA_STROBE_GPIO_Port, SPI1_DATA_STROBE_Pin, GPIO_PIN_RESET);
 
 			if (result == HAL_OK) {

@@ -52,8 +52,9 @@ typedef enum
 
 
 void PBalancer_init(void);
-
+void PBalancer_set(uint8_t channel, uint8_t value);
 uint8_t	process_PBalancer(void);
+void PB_OutputEnable(GPIO_PinState PinState);
 
 
 #ifdef __cplusplus

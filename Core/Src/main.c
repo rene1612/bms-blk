@@ -21,7 +21,7 @@
 #include "can.h"
 #include "crc.h"
 #include "dma.h"
-//#include "rtc.h"
+#include "rtc.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -184,6 +184,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_CAN_Init();
+  MX_RTC_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
@@ -355,7 +356,9 @@ uint8_t process_10Ms_Timer(void)
 		}
 	}
 
-	process_PBalancer();
+	//HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_TOGLE);
+	HAL_GPIO_TogglePin(FAN_SPEED_GPIO_Port,FAN_SPEED_Pin);
+	//process_PBalancer();
 
 	if (!(++timer_10ms % 10))
 	{

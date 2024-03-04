@@ -285,6 +285,8 @@ void set_sys_state (_SYS_STATE sys_state);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define FAN_SPEED_Pin GPIO_PIN_1
+#define FAN_SPEED_GPIO_Port GPIOA
 #define SPI1_DATA_STROBE_Pin GPIO_PIN_0
 #define SPI1_DATA_STROBE_GPIO_Port GPIOB
 #define SPI1_OE_Pin GPIO_PIN_1
@@ -298,6 +300,52 @@ void set_sys_state (_SYS_STATE sys_state);
 #define LED_BLUE_Pin GPIO_PIN_14
 #define LED_BLUE_GPIO_Port GPIOB
 
+/* USER CODE BEGIN Private defines */
+
+#define PROCESS_NO_TASK			0x00
+#define PROCESS_NEEY			0x01
+#define PROCESS_CAN				0x02
+#define PROCESS_10_MS_TASK		0x04
+#define PROCESS_100_MS_TASK		0x08
+#define PROCESS_STATUS			0x10
+#define PROCESS_PBALANCER		0x20
+
+#define ALIVE_TIMEOUT_10MS		15
+#define APP_CAN_BITRATE			500000UL
+
+#define __DEV_SIGNATURE__		0x12
+#define __SW_RELEASE__			0x0090
+#define SW_RELEASE_DAY			12
+#define SW_RELEASE_MONTH		2
+#define SW_RELEASE_YEAR			2024
+#define __SW_RELEASE_DATE__		((SW_RELEASE_DAY<<24 ) | (SW_RELEASE_MONTH<<18) | SW_RELEASE_YEAR)
+
+
+ /**
+  * Bit-Defines für das Controllregister
+  */
+  #define REG_CTRL_ACTIVATE			0
+  #define REG_CTRL_DEACTIVATE		1
+  #define REG_CTRL_CRIT_ALLERT		2
+  #define REG_CTRL_RESET			7	//!<Reset des Controllers auslösen
+
+ /**
+  * Zustände
+  */
+#define STATE_OFF					0x00	//!<Keine Blinken (LED aus)
+
+#define STATE_OK					0x4F	//!<Zustand alles OK (gleichmäßiges "langsames" Blinken Tastverhältnis 50/50)
+
+#define STATE_WARN					0xCC	//!<Zustand Warnung (gleichmäßiges "schnelles" Blinken Tastverhältnis 50/50)
+
+#define STATE_ERR_UNKNOWN			0x1F	//!<Zustand unbekannter Fehler (gleichmäßiges "sehr schnelles" Blinken Tastverhältnis 50/50)
+
+#define STATE_ERR_HEADSINK_TEMP		0x11	//!<Zustand Fehler Kühlkörper-Temperatur zu hoch (einmal kurzes blinken)
+
+
+#define MAX_LF280K_CELL_COUNT		22
+
+/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }

@@ -50,9 +50,9 @@ void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN1;
-  hcan.Init.Prescaler = pDevConfig->app_can_bitrate;
+  hcan.Init.Prescaler = 18;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_2TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
@@ -113,7 +113,6 @@ void MX_CAN_Init(void)
 
 }
 
-
 void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -154,7 +153,6 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
   }
 }
 
-
 void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -180,7 +178,6 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
   /* USER CODE END CAN1_MspDeInit 1 */
   }
 }
-
 
 /* USER CODE BEGIN 1 */
 uint8_t	process_CAN(void)
