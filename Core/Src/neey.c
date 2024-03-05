@@ -205,6 +205,17 @@ void HAL_NEEY_MspDeInit(NEEY_HandleTypeDef* neeyHandle)
 }
 
 
+uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len) {
+
+	if (sub_type && sub_type<NEEY_SUB_TYPE_EquVol && len && len < 8) {
+
+		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, sub_type, (uint8_t*)p_data , len);
+		return HAL_OK;
+	}
+
+	return HAL_ERROR;
+}
+
 void check_and_send_config_data_NEEY(void) {
 
 	uint8_t init_buffer[10]={};
@@ -215,43 +226,43 @@ void check_and_send_config_data_NEEY(void) {
 
 		if (neey_ctrl.neey_dev_info.Buzzer==0 || neey_ctrl.neey_dev_info.Buzzer!=main_regs.cfg_regs.neey_cfg_data.buzzer) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_Buzzer, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.buzzer , sizeof(main_regs.cfg_regs.neey_cfg_data.buzzer));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.CellCount==0 || neey_ctrl.neey_dev_info.CellCount!=main_regs.cfg_regs.neey_cfg_data.cell_count) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_cellcount, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_count , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_count));
 			//maybe the neey sends answer to command and better to wait for it???
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.StartVol==0 || neey_ctrl.neey_dev_info.StartVol!=main_regs.cfg_regs.neey_cfg_data.start_voltage) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_StartVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.start_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.start_voltage));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.MaxBalCurrent==0 || neey_ctrl.neey_dev_info.MaxBalCurrent!=main_regs.cfg_regs.neey_cfg_data.max_balance_current) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_MaxBalCurrent, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.max_balance_current , sizeof(main_regs.cfg_regs.neey_cfg_data.max_balance_current));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.SleepVol==0 || neey_ctrl.neey_dev_info.SleepVol!=main_regs.cfg_regs.neey_cfg_data.sleep_voltage) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_SleepVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.sleep_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.sleep_voltage));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.BatType==0 || neey_ctrl.neey_dev_info.BatType!=main_regs.cfg_regs.neey_cfg_data.cell_type) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatType, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_type , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_type));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.BatCap==0 || neey_ctrl.neey_dev_info.BatCap!=main_regs.cfg_regs.neey_cfg_data.cell_cpacity) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BatCap, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.cell_cpacity , sizeof(main_regs.cfg_regs.neey_cfg_data.cell_cpacity));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 
 		if (neey_ctrl.neey_dev_info.EquVol==0 || neey_ctrl.neey_dev_info.EquVol!=main_regs.cfg_regs.neey_cfg_data.equalization_voltage) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_EquVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.equalization_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.equalization_voltage));
-			HAL_Delay(100);
+			HAL_Delay(200);
 		}
 	}
 

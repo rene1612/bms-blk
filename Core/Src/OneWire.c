@@ -1,8 +1,3 @@
-#include "OneWire.h"
-#include "stm32f1xx_hal.h"
-#include "stdio.h"
-#include "string.h"
-
 /**
     @author Stanislav Lakhtin
     @date   11.07.2016
@@ -16,6 +11,14 @@
             Реализация библиотеки предполагает возможную одновременную работу как с независимыми шинами сразу со всеми
             возможными UART/USART в микроконтроллере. При этом все шины (до 5 штук) будут адресоваться и опрашиваться индивидуально
  */
+
+#include "OneWire.h"
+#include "stm32f1xx_hal.h"
+#include "stdio.h"
+#include "string.h"
+
+#include "gpio.h"
+
 
 
 extern UART_HandleTypeDef huart3;
@@ -37,6 +40,9 @@ Temperature t;
 char *crcOK;
 
 
+uint8_t getUsartIndex(void);
+
+
 uint16_t USART_ReceiveData(USART_TypeDef* USARTx)
 {
 	/* Check the parameters */
@@ -56,9 +62,6 @@ void USART_SendData(USART_TypeDef* USARTx, uint16_t Data)
 	/* Transmit Data */
 	USARTx->DR = (Data & (uint16_t)0x01FF);
 }
-
-
-uint8_t getUsartIndex(void);
 
 
 void usart_setup(uint32_t baud) {
@@ -151,7 +154,9 @@ void owSend(uint16_t data) {
 
 	USART_SendData(OW_USART, data);//отправляем данные
 
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
 	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//ждем пока передача закончится
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
 
@@ -294,7 +299,7 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
 		else {//колизия пришло 00 т.е текущий бит у ROM-ов разный
 			if (ui32BitNumber == ow->lastDiscrepancy) {//если текущая позиция колизии равна прошлой
 				searchDirection = 1;//выбираем в каком направлении будем двигатся дальше
-			}
+		}
 			else {
 				if (ui32BitNumber > ow->lastDiscrepancy) {//если мы зашили дальше
 					searchDirection = 0;//выбираем в каком направлении будем двигатся дальше
@@ -317,7 +322,7 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
 		owSend(answerBit);//вырубаем "мешающие" устройсва
 		ui32BitNumber++;//ищем следующий бит
 
-		} while (ui32BitNumber < 64);//пока не найден весь ROM все биты
+	} while (ui32BitNumber < 64);//пока не найден весь ROM все биты
 
 	ow->lastDiscrepancy = zeroFork;//запоминаем развилку
 
@@ -345,12 +350,22 @@ int owSearchCmd(OneWire *ow) {
 }
 
 
+/**
+ * Method for
+ * @param ow -- OneWire pointer
+ * @return data
+ */
 void owSkipRomCmd(OneWire *ow) {//отправляет команду пропуска ROM после этого следующая команда будет
 	owResetCmd();                 //для всех устройств на шине
 	owSendByte(ONEWIRE_SKIP_ROM);
 }
 
 
+/**
+ * Method for
+ * @param rom -- selected device on the bus
+ * @return none
+ */
 void owMatchRomCmd(RomCode *rom) {//позволяет мастеру обращаться к конкретному  ведомому устройству
 	int i = 0;
 
@@ -362,10 +377,17 @@ void owMatchRomCmd(RomCode *rom) {//позволяет мастеру обращ
 }
 
 
+/**
+ * Method for
+ * @param ow -- OneWire pointer
+ * @param rom -- selected device on the bus
+ * @return none
+ */
 void owConvertTemperatureCmd(OneWire *ow, RomCode *rom) {
 	owMatchRomCmd(rom);//позволяет мастеру обращаться к конкретному  ведомому устройству
 	owSendByte(ONEWIRE_CONVERT_TEMPERATURE);//говорим датчику пора бы преобразовать температуру
 }
+
 
 /**
  * Method for reading scratchad DS18B20 OR DS18S20
@@ -481,18 +503,20 @@ void owRecallE2Cmd(OneWire *ow, RomCode *rom) {
 }
 
 
-int get_ROMid (void){
+int get_ROMid (void) {
 
 	if (owResetCmd() != ONEWIRE_NOBODY) {    // is anybody on the bus?
+
 		devices = owSearchCmd(&ow);        // получить ROMid в�?ех у�?трой�?т на шине или вернуть код ошибки
+
 		if (devices <= 0) {
-			while (1){
+			while (1) {
 				pDelay = 1000000;
 				for (i = 0; i < pDelay * 1; i++)    /* Wait a bit. */
 					__asm__("nop");
 			}
-
 		}
+
 		i = 0;
 		for (; i < devices; i++) {//выводим в кон�?оль в�?е найденные ROM
 			RomCode *r = &ow.ids[i];
@@ -508,8 +532,8 @@ int get_ROMid (void){
 				sprintf (devInfo.info,"\n can't read cause CNC error");
 			}
 		}
-
 	}
+
 	pDelay = 1000000;
 	for (i = 0; i < pDelay * 1; i++)
 		__asm__("nop");

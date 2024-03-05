@@ -159,6 +159,7 @@ int main(void)
 	//adc_enable_mask = (0x01<<ADC_CH5);
 	alive_timer = 0;
 	timer_10ms = 0;
+	uint8_t timer_100ms = 0;
 
 	memcpy(&main_regs.cfg_regs, &app_cfg_regs, sizeof(_BMS_BLK_CONFIG_REGS));
 
@@ -193,8 +194,6 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
-  //
-  PBalancer_init();
 
   HAL_CAN_Start(&hcan);
 
@@ -202,6 +201,9 @@ int main(void)
   {
 	  Error_Handler();
   }
+
+  //
+  PBalancer_init();
 
   //start one-wire temperature sensors
   get_ROMid();
@@ -260,7 +262,8 @@ int main(void)
 	  {
 		  main_task_scheduler &= ~PROCESS_100_MS_TASK;
 
-		  get_Temperature();
+		  if ( !(++timer_100ms % 10))
+			  get_Temperature();
 
 		  HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
 	  }
@@ -357,8 +360,8 @@ uint8_t process_10Ms_Timer(void)
 	}
 
 	//HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_TOGLE);
-	HAL_GPIO_TogglePin(FAN_SPEED_GPIO_Port,FAN_SPEED_Pin);
-	//process_PBalancer();
+	//HAL_GPIO_TogglePin(FAN_SPEED_GPIO_Port,FAN_SPEED_Pin);
+	process_PBalancer();
 
 	if (!(++timer_10ms % 10))
 	{

@@ -23,6 +23,7 @@
 /* USER CODE BEGIN 0 */
 #include "main.h"
 #include "neey.h"
+#include "passive_balancer.h"
 
 extern const _DEV_CONFIG_REGS* pDevConfig;
 
@@ -50,15 +51,15 @@ void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 18;
+  hcan.Init.Prescaler = pDevConfig->app_can_bitrate;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_2TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = DISABLE;
+  hcan.Init.AutoBusOff = ENABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
@@ -72,7 +73,7 @@ void MX_CAN_Init(void)
   main_regs.can_tx_data_id = (pDevConfig->dev_id<<4) + CANTX_SA;
   main_regs.can_tx_heartbeat_id = (pDevConfig->dev_id<<4) + CANTX_HA;
   main_regs.can_filterMask = RXFILTERMASK;
-  main_regs.can_filterID = (pDevConfig->dev_id<<8); // Only accept bootloader CAN message ID
+  main_regs.can_filterID = (pDevConfig->dev_id<<4); // Only accept bootloader CAN message ID
 
   TxHeader.DLC = 5;
   TxHeader.IDE = CAN_ID_STD;
@@ -282,6 +283,49 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		case PB_SET_CMD:
+			//printf("WRITE_REG_CMD\n");
+			uint8_t channal = CanRxData[1];
+			uint8_t value = CanRxData[2];
+
+			PBalancer_set(channal, value);
+			CanTxData[1] = ACK;
+			ReplayHeader.DLC = 2;
+			CanTxData[0] = REPLAY_AKC_NACK_CMD;
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
+		case PB_SET_OE_CMD:
+			//printf("WRITE_REG_CMD\n");
+
+			if (CanRxData[1])
+				PB_OutputEnable(GPIO_PIN_SET);
+			else
+				PB_OutputEnable(GPIO_PIN_RESET);
+
+			CanTxData[1] = ACK;
+			ReplayHeader.DLC = 2;
+			CanTxData[0] = REPLAY_AKC_NACK_CMD;
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
+		case NEEY_SET_CMD:
+			//printf("WRITE_REG_CMD\n");
+
+			if (Send_Param_to_neey(CanRxData[1], (uint8_t*)&CanRxData[2] , RxHeader.DLC-2)==HAL_OK)
+			{
+				CanTxData[1] = ACK;
+			}
+			else
+			{
+				CanTxData[1] = NACK;
+			}
+
+			ReplayHeader.DLC = 2;
+			CanTxData[0] = REPLAY_AKC_NACK_CMD;
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
 		default:
 			break;
 		}
@@ -313,7 +357,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 		Error_Handler();
 	}
 
-	if ((RxHeader.StdId == 0x446))
+	if ((RxHeader.StdId == main_regs.can_rx_cmd_id))
 	{
 		can_task_scheduler |= PROCESS_CAN_ON_MSG;
     	main_task_scheduler |= PROCESS_CAN;

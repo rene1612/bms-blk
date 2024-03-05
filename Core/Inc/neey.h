@@ -393,6 +393,8 @@ void MX_NEEY_Init(void);
 
 uint8_t	process_NEEY(void);
 
+uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len);
+
 
 #ifdef __cplusplus
 }

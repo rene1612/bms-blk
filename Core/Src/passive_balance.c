@@ -93,7 +93,7 @@ uint8_t	process_PBalancer(void)
 					pb_ctrl.ch_ebable_mask &= ~(1<<ch);
 				}else {
 
-					if (!(pb_ctrl.time_index > pb_ctrl.ch_val[ch])) {
+					if (!(pb_ctrl.time_index >= pb_ctrl.ch_val[ch])) {
 						//set
 						//ch_mask |= (1<<(ch%8));
 						spi_buffer[(ch/8)] |= (1<<(ch%8));
