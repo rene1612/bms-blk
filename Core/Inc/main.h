@@ -51,6 +51,7 @@ extern uint8_t alive_timer;
 #define PROCESS_100_MS_TASK		0x08
 #define PROCESS_STATUS			0x10
 #define PROCESS_PBALANCER		0x20
+#define PROCESS_OW				0x40
 
 #define ALIVE_TIMEOUT_10MS		15
 #define APP_CAN_BITRATE			500000UL

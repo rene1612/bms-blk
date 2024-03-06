@@ -244,6 +244,16 @@ int main(void)
 	  }
 
 
+	  if (main_task_scheduler & PROCESS_OW)
+	  {
+		  if (!process_OW())
+		  {
+			  //
+			  main_task_scheduler &= ~PROCESS_OW;
+		  }
+	  }
+
+
 	  if (main_task_scheduler & PROCESS_CAN)
 	  {
 		  if (!process_CAN())

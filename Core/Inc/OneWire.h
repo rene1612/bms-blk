@@ -75,10 +75,18 @@ typedef struct {
 } Scratchpad_DS18S20;//
 
 
+typedef enum {
+	ow_nobody=0xF0,
+
+}OW_CMD;
+
 typedef struct {
   RomCode ids[MAXDEVICES_ON_THE_BUS];//для всех ромов наших датчиков
   int lastDiscrepancy;
   uint8_t lastROM[8];//последний считанный ROM для поиска всех ROM
+  uint8_t rx_buffer;
+  uint8_t tx_buffer[64];
+  OW_CMD	cmd;
 } OneWire;
 
 
@@ -114,12 +122,12 @@ void owSend(uint16_t data);
 
 void owSendByte(uint8_t data);
 
-uint16_t owEchoRead(void);
-
 void owReadHandler(void);
 
 int get_ROMid (void);
 
 void get_Temperature (void);
+
+uint8_t process_OW(void);
 
 #endif //STM32_DS18X20_ONEWIRE_H

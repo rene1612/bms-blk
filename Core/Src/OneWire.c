@@ -12,11 +12,11 @@
             возможными UART/USART в микроконтроллере. При этом все шины (до 5 штук) будут адресоваться и опрашиваться индивидуально
  */
 
+#include "main.h"
 #include "OneWire.h"
 #include "stm32f1xx_hal.h"
 #include "stdio.h"
 #include "string.h"
-
 #include "gpio.h"
 
 
@@ -28,7 +28,7 @@ extern UART_HandleTypeDef huart3;
 
 /*********************************************************************************************/
 volatile uint8_t recvFlag;
-volatile uint16_t rc_buffer[5];
+//volatile uint16_t rc_buffer[5];
 
 int16_t Temp[MAXDEVICES_ON_THE_BUS];
 uint8_t devices;
@@ -40,27 +40,35 @@ Temperature t;
 char *crcOK;
 
 
-uint8_t getUsartIndex(void);
 
-
-uint16_t USART_ReceiveData(USART_TypeDef* USARTx)
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-	/* Check the parameters */
-	assert_param(IS_USART_ALL_PERIPH(USARTx));
-
-	/* Receive Data */
-	return (uint16_t)(USARTx->DR & (uint16_t)0x01FF);
+	if (huart->Instance == OW_USART){
+		main_task_scheduler |= PROCESS_OW;
+	}
 }
 
+//uint16_t USART_ReceiveData(USART_TypeDef* USARTx)
+//{
+//	/* Check the parameters */
+//	assert_param(IS_USART_ALL_PERIPH(USARTx));
+//
+//	/* Receive Data */
+//	return (uint16_t)(USARTx->DR & (uint16_t)0x01FF);
+//}
 
-void USART_SendData(USART_TypeDef* USARTx, uint16_t Data)
+
+void USART_SendData(UART_HandleTypeDef *huart, uint8_t* pData, uint8_t len)
 {
 	/* Check the parameters */
-	assert_param(IS_USART_ALL_PERIPH(USARTx));
+	assert_param(IS_USART_ALL_PERIPH(huart->Instance));
 	assert_param(IS_USART_DATA(Data));
+	assert(len<=sizeof(ow.tx_buffer));
 
+	//HAL_UART_Transmit_IT();
+	HAL_UART_Transmit_DMA(huart, pData, len);
 	/* Transmit Data */
-	USARTx->DR = (Data & (uint16_t)0x01FF);
+	//USARTx->DR = (Data & (uint16_t)0x01FF);
 }
 
 
@@ -89,7 +97,6 @@ void owInit(OneWire *ow) {
 	int i=0, k = 0;
 
 	for (; i < MAXDEVICES_ON_THE_BUS; i++) {
-
 		uint8_t *r = (uint8_t *)&ow->ids[i];
 
 		k=0;
@@ -106,18 +113,39 @@ void owInit(OneWire *ow) {
 
 
 void owReadHandler() { //обработчик прерыания USART
-	uint8_t index = getUsartIndex();
 
 	/* Проверяем, что мы вызвали прерывание из-за RXNE. */
 	if (((OW_USART->CR1 & USART_CR1_RXNEIE) != 0) &&
 		((OW_USART->SR & UART_FLAG_RXNE) != (uint16_t)RESET)) {
 
 		/* Получаем данные из периферии и сбрасываем флаг*/
-		while ((OW_USART->SR & UART_FLAG_RXNE) == (uint16_t)RESET){;}
+		//while ((OW_USART->SR & UART_FLAG_RXNE) == (uint16_t)RESET){;}
 
-		rc_buffer[index] = USART_ReceiveData(OW_USART);
-		recvFlag &= ~(1 << index);//сбрасываем флаг ответ получен после
+		/* Check the parameters */
+		assert_param(IS_USART_ALL_PERIPH(OW_USART));
+
+		/* Receive Data */
+		ow.rx_buffer = (uint16_t)(OW_USART->DR & (uint16_t)0x01FF);
+		recvFlag &= ~(1 << 0);//сбрасываем флаг ответ получен после
 	}
+}
+
+void owSend(uint8_t data) {
+	recvFlag |= (1 << 0);//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
+
+	USART_SendData(OW_USART, data);//отправляем данные
+
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//ждем пока передача закончится
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
+}
+
+uint16_t owEchoRead() {//
+	uint16_t pause = 1000;
+
+	while (recvFlag & (1 << 0) && pause--);// ждем пока кто-то не ответит но не больше паузы
+
+	return ow.rx_buffer;//в зависимости от используемого номера UART
 }
 
 
@@ -140,39 +168,11 @@ uint16_t owResetCmd() {
 }
 
 
-uint8_t getUsartIndex() {// смотрит по номеру UART c каким будет идти работа
-//	uint8_t result;
-//	if(OW_USART==USART1)result = 0;
-//	else if (OW_USART==USART2)result = 1;
-//	else if (OW_USART==USART3)result = 2;
-	return 0;
-}
-
-
-void owSend(uint16_t data) {
-	recvFlag |= (1 << getUsartIndex());//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
-
-	USART_SendData(OW_USART, data);//отправляем данные
-
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
-	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//ждем пока передача закончится
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
-}
-
 
 uint8_t owReadSlot(uint16_t data) {//читаем у нас пришла единица или ноль в ответ
 	return (data == OW_READ) ? 1 : 0; //если пришло 0xFF, то бит = 1, что то другое бит = 0
 }
 
-
-uint16_t owEchoRead() {//
-	uint8_t i = getUsartIndex();//получаем номер USART
-	uint16_t pause = 1000;
-
-	while (recvFlag & (1 << i) && pause--);// ждем пока кто-то не ответит но не больше паузы
-
-	return rc_buffer[i];//в зависимости от используемого номера UART
-}
 
 
 uint8_t *byteToBits(uint8_t ow_byte, uint8_t *bits) {//разлагаем 1 байт на 8 байт ,кодируем так скасказать в посылку для 1wire
@@ -571,4 +571,8 @@ void get_Temperature (void)
 	}
 //	pDelay = 4000000;
 //	for (i = 0; i < pDelay * 1; i++){}   /* Wait a bit. */
+}
+
+uint8_t process_OW(void) {
+	return 0;
 }
