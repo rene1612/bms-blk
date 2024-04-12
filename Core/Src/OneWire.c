@@ -26,7 +26,7 @@ extern UART_HandleTypeDef huart3;
 #define OW_USART USART3
 #define MAXDEVICES_ON_THE_BUS 23
 
-/*********************************************************************************************/
+/*****************************************************************************/
 volatile uint8_t recvFlag;
 //volatile uint16_t rc_buffer[5];
 
@@ -41,10 +41,17 @@ char *crcOK;
 
 
 
+/****************************************************************************
+ * HAL_UART_TxCpltCallback
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == OW_USART){
 		main_task_scheduler |= PROCESS_OW;
+		ow_task_scheduler |= PROCESS_TX_CPLT;
 	}
 }
 
@@ -58,6 +65,12 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 //}
 
 
+/****************************************************************************
+ * USART_SendData
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 void USART_SendData(UART_HandleTypeDef *huart, uint8_t* pData, uint8_t len)
 {
 	/* Check the parameters */
@@ -72,6 +85,12 @@ void USART_SendData(UART_HandleTypeDef *huart, uint8_t* pData, uint8_t len)
 }
 
 
+/****************************************************************************
+ * usart_setup
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 void usart_setup(uint32_t baud) {
 
 	ow_uart.Instance = OW_USART;
@@ -93,6 +112,12 @@ void usart_setup(uint32_t baud) {
 }
 
 
+/****************************************************************************
+ * owInit
+ *
+ * @param ow
+ * @return none
+ */
 void owInit(OneWire *ow) {
 	int i=0, k = 0;
 
@@ -112,6 +137,12 @@ void owInit(OneWire *ow) {
 }
 
 
+/****************************************************************************
+ * owReadHandler
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 void owReadHandler() { //обработчик прерыания USART
 
 	/* Проверяем, что мы вызвали прерывание из-за RXNE. */
@@ -130,6 +161,13 @@ void owReadHandler() { //обработчик прерыания USART
 	}
 }
 
+
+/****************************************************************************
+ * owSend
+ *
+ * @param data Data to send
+ * @return none
+ */
 void owSend(uint8_t data) {
 	recvFlag |= (1 << 0);//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
 
@@ -140,6 +178,13 @@ void owSend(uint8_t data) {
 	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
+
+/****************************************************************************
+ * owEchoRead
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint16_t owEchoRead() {//
 	uint16_t pause = 1000;
 
@@ -169,12 +214,24 @@ uint16_t owResetCmd() {
 
 
 
+/****************************************************************************
+ * owReadSlot
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t owReadSlot(uint16_t data) {//читаем у нас пришла единица или ноль в ответ
 	return (data == OW_READ) ? 1 : 0; //если пришло 0xFF, то бит = 1, что то другое бит = 0
 }
 
 
 
+/****************************************************************************
+ * byteToBits
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t *byteToBits(uint8_t ow_byte, uint8_t *bits) {//разлагаем 1 байт на 8 байт ,кодируем так скасказать в посылку для 1wire
 	uint8_t i;
 
@@ -212,6 +269,12 @@ void owSendByte(uint8_t d) {
 }
 
 
+/****************************************************************************
+ * bitsToByte
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t bitsToByte(uint8_t *bits) {//принимает "кодированый" массив байт полученный по UART и делает из него байт))
 	uint8_t target_byte, i;
 
@@ -231,6 +294,12 @@ uint8_t bitsToByte(uint8_t *bits) {//принимает "кодированый"
 }
 
 /* Подсчет CRC8 массива mas длиной Len */
+/****************************************************************************
+ * owCRC
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t owCRC(uint8_t *mas, uint8_t Len) {
 	uint8_t i, dat, crc, fb, st_byt;
 
@@ -256,6 +325,12 @@ uint8_t owCRC(uint8_t *mas, uint8_t Len) {
 }
 
 
+/****************************************************************************
+ * owCRC8
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t owCRC8(RomCode *rom){
 	return owCRC((uint8_t*)rom, 7);
 }
@@ -503,6 +578,12 @@ void owRecallE2Cmd(OneWire *ow, RomCode *rom) {
 }
 
 
+/****************************************************************************
+ * get_ROMid
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 int get_ROMid (void) {
 
 	if (owResetCmd() != ONEWIRE_NOBODY) {    // is anybody on the bus?
@@ -543,6 +624,9 @@ int get_ROMid (void) {
 }
 
 
+
+
+
 void get_Temperature (void)
 {
 	i=0;
@@ -573,6 +657,18 @@ void get_Temperature (void)
 //	for (i = 0; i < pDelay * 1; i++){}   /* Wait a bit. */
 }
 
+/****************************************************************************
+ *
+ * @param void
+ * @return ow_prcess_mask
+ */
 uint8_t process_OW(void) {
+
+	if (ow_task_scheduler & PROCESS_TX_CPLT)
+	{
+
+		ow_task_scheduler &= ~PROCESS_TX_CPLT;
+	}
+
 	return 0;
 }
