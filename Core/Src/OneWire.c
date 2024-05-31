@@ -24,10 +24,11 @@
 extern UART_HandleTypeDef huart3;
 #define ow_uart huart3
 #define OW_USART USART3
+
 #define MAXDEVICES_ON_THE_BUS 23
 
 /*****************************************************************************/
-volatile uint8_t recvFlag;
+//volatile uint8_t recvFlag;
 //volatile uint16_t rc_buffer[5];
 
 int16_t Temp[MAXDEVICES_ON_THE_BUS];
@@ -38,6 +39,9 @@ uint8_t sensor;
 DEVInfo devInfo;
 Temperature t;
 char *crcOK;
+uint8_t ow_task_scheduler;
+
+uint8_t current_temp_device;
 
 
 
@@ -51,7 +55,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == OW_USART){
 		main_task_scheduler |= PROCESS_OW;
-		ow_task_scheduler |= PROCESS_TX_CPLT;
+		ow_task_scheduler |= OW_PROCESS_TX_CPLT;
 	}
 }
 
@@ -104,7 +108,7 @@ void usart_setup(uint32_t baud) {
 
 	if (HAL_HalfDuplex_Init(&ow_uart) != HAL_OK)
 	{
-		//	    Error_Handler();
+		Error_Handler();
 		__asm__("NOP");
 	}
 
@@ -134,6 +138,10 @@ void owInit(OneWire *ow) {
 		ow->lastROM[k] = 0x00;
 
 	ow->lastDiscrepancy = 64;
+	ow->state = ow_state_none;
+
+	ow_task_scheduler = OW_NO_TASK;
+	current_temp_device = 0;
 }
 
 
@@ -157,7 +165,7 @@ void owReadHandler() { //обработчик прерыания USART
 
 		/* Receive Data */
 		ow.rx_buffer = (uint16_t)(OW_USART->DR & (uint16_t)0x01FF);
-		recvFlag &= ~(1 << 0);//сбрасываем флаг ответ получен после
+		ow.recvFlag &= ~(1 << 0);//сбрасываем флаг ответ получен после
 	}
 }
 
@@ -169,12 +177,12 @@ void owReadHandler() { //обработчик прерыания USART
  * @return none
  */
 void owSend(uint8_t data) {
-	recvFlag |= (1 << 0);//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
+	ow.recvFlag |= (1 << 0);//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
 
-	USART_SendData(OW_USART, data);//отправляем данные
+	USART_SendData(&ow_uart, &data, 1);//отправляем данные
 
 	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
-	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//ждем пока передача закончится
+	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//wait for tx to complete
 	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
@@ -188,7 +196,7 @@ void owSend(uint8_t data) {
 uint16_t owEchoRead() {//
 	uint16_t pause = 1000;
 
-	while (recvFlag & (1 << 0) && pause--);// ждем пока кто-то не ответит но не больше паузы
+	while (ow.recvFlag & (1 << 0) && pause--);// ждем пока кто-то не ответит но не больше паузы
 
 	return ow.rx_buffer;//в зависимости от используемого номера UART
 }
@@ -259,13 +267,15 @@ uint8_t *byteToBits(uint8_t ow_byte, uint8_t *bits) {//разлагаем 1 ба
  */
 void owSendByte(uint8_t d) {
 	uint8_t data[8];
-	int i;
+	//int i;
 
 	byteToBits(d, data);//преобразовываем байт в биты "массив байт для  передачи UART и эмуляции 1WIRE"
 
-	for (i = 0; i < 8; ++i) {
-		owSend(data[i]);
-	}
+//	for (i = 0; i < 8; ++i) {
+//		owSend(data[i]);
+//	}
+
+	USART_SendData(&ow_uart, data, 8);
 }
 
 
@@ -408,7 +418,12 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
 }
 
 
-// Возвращает количество устройств на шине или код ошибки, если значение меньше 0
+
+/**
+ * Method for Возвращает количество устройств на шине или код ошибки, если значение меньше 0
+ * @param ow -- OneWire pointer
+ * @return data
+ */
 int owSearchCmd(OneWire *ow) {
 	int device = 0, nextROM;
 	owInit(ow);
@@ -439,16 +454,33 @@ void owSkipRomCmd(OneWire *ow) {//отправляет команду пропу
 /**
  * Method for
  * @param rom -- selected device on the bus
+ * @param cmd -- command to operate
  * @return none
  */
-void owMatchRomCmd(RomCode *rom) {//позволяет мастеру обращаться к конкретному  ведомому устройству
+void owMatchRomCmd(RomCode *rom, uint8_t cmd) {//позволяет мастеру обращаться к конкретному  ведомому устройству
 	int i = 0;
+	uint8_t buf_ptr=0;
 
 	owResetCmd();
-	owSendByte(ONEWIRE_MATCH_ROM);//обращаемся к конкретному устройсву
 
-	for (; i < 8; i++)
-		owSendByte(*(((uint8_t *) rom) + i));//"перебираемся по структуре как по массиву" первой звездочкой получаем i тый байт из структуры
+	byteToBits(ONEWIRE_MATCH_ROM, ow.tx_buffer);//преобразовываем байт в биты "массив байт для  передачи UART и эмуляции 1WIRE"
+	buf_ptr += 8;
+
+
+	//owSendByte(ONEWIRE_MATCH_ROM);//обращаемся к конкретному устройсву
+
+	for (; i < 8; i++) {
+		byteToBits(*(((uint8_t *) rom) + i), ow.tx_buffer+buf_ptr);
+		buf_ptr += 8;
+		//owSendByte(*(((uint8_t *) rom) + i));//"перебираемся по структуре как по массиву" первой звездочкой получаем i тый байт из структуры
+	}
+
+
+	byteToBits(cmd, ow.tx_buffer+buf_ptr);//преобразовываем байт в биты "массив байт для  передачи UART и эмуляции 1WIRE"
+	buf_ptr += 8;
+
+
+	USART_SendData(&ow_uart, ow.tx_buffer, buf_ptr);
 }
 
 
@@ -459,8 +491,9 @@ void owMatchRomCmd(RomCode *rom) {//позволяет мастеру обращ
  * @return none
  */
 void owConvertTemperatureCmd(OneWire *ow, RomCode *rom) {
-	owMatchRomCmd(rom);//позволяет мастеру обращаться к конкретному  ведомому устройству
-	owSendByte(ONEWIRE_CONVERT_TEMPERATURE);//говорим датчику пора бы преобразовать температуру
+	owMatchRomCmd(rom, ONEWIRE_CONVERT_TEMPERATURE);//позволяет мастеру обращаться к конкретному  ведомому устройству
+
+	ow->state=ow_convert_temperature;
 }
 
 
@@ -486,8 +519,12 @@ uint8_t *owReadScratchpadCmd(OneWire *ow, RomCode *rom, uint8_t *data) {//чит
 			return data;
 	}
 
-	owMatchRomCmd(rom);
-	owSendByte(ONEWIRE_READ_SCRATCHPAD);//отправляем команду на чтение памяти
+	//owMatchRomCmd(rom);
+	//owSendByte(ONEWIRE_READ_SCRATCHPAD);//отправляем команду на чтение памяти
+
+	owMatchRomCmd(rom, ONEWIRE_READ_SCRATCHPAD);//
+	ow->state=ow_read_scratchpad;
+
 
 	while (b < p) {// пока мы не обработали 9 байт
 		uint8_t pos = (uint8_t) ((p - 8) / 8 - (b / 8)); //позиция обрабатываемого байта
@@ -513,11 +550,18 @@ void owWriteDS18B20Scratchpad(OneWire *ow, RomCode *rom, uint8_t th, uint8_t tl,
 	if (rom->family != DS18B20)
 		return;
 
-	owMatchRomCmd(rom);//обращаемся к конкретному устройству
-	owSendByte(ONEWIRE_WRITE_SCRATCHPAD);//будем записывать в память
+	owMatchRomCmd(rom, ONEWIRE_WRITE_SCRATCHPAD);//
+
+
+	//owMatchRomCmd(rom);//обращаемся к конкретному устройству
+	//owSendByte(ONEWIRE_WRITE_SCRATCHPAD);//будем записывать в память
+
+
 	owSendByte(th);//пороги для температур
 	owSendByte(tl);
 	owSendByte(conf);
+
+	ow->state=ow_write_scratchpad;
 }
 
 
@@ -567,15 +611,16 @@ Temperature readTemperature(OneWire *ow, RomCode *rom, uint8_t reSense) {
 
 
 void owCopyScratchpadCmd(OneWire *ow, RomCode *rom) {
-	owMatchRomCmd(rom);
-	owSendByte(ONEWIRE_COPY_SCRATCHPAD);
+	owMatchRomCmd(rom, ONEWIRE_COPY_SCRATCHPAD);//
+	ow->state=ow_copy_scratchpad;
 }
 
 
 void owRecallE2Cmd(OneWire *ow, RomCode *rom) {
-	owMatchRomCmd(rom);
-	owSendByte(ONEWIRE_RECALL_E2);
+	owMatchRomCmd(rom, ONEWIRE_RECALL_E2);//
+	ow->state=ow_recall_E2_cmd;
 }
+
 
 
 /****************************************************************************
@@ -627,35 +672,24 @@ int get_ROMid (void) {
 
 
 
+/****************************************************************************
+ * get_Temperature (void)
+ * @param void
+ * @return none
+ */
 void get_Temperature (void)
 {
-	i=0;
-	for (; i < devices; i++) {
-		switch ((ow.ids[i]).family) {//че у нас за датчик
-		case DS18B20:
-			// будет возвращено значение предыдущего измерения!
-			t = readTemperature(&ow, &ow.ids[i], 1);
-			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
-			Temp[i] = (int16_t)t.inCelsus*10 + t.frac;
-			break;
+	if (!current_temp_device) {
+		current_temp_device = devices;
 
-		case DS18S20:
-			t = readTemperature(&ow, &ow.ids[i], 1);
-			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
-			Temp[i] = (int16_t)t.inCelsus*10 + t.frac;
-			break;
-
-		case 0x00:
-			break;
-
-		default:
-			// error handler
-			break;
-		}
+		ow_task_scheduler |= OW_PROCESS_READ_TEMP;
+		main_task_scheduler |= PROCESS_OW;
 	}
-//	pDelay = 4000000;
-//	for (i = 0; i < pDelay * 1; i++){}   /* Wait a bit. */
 }
+
+
+void read_Temperatures_OW (void)
+{
 
 /****************************************************************************
  *
@@ -666,8 +700,54 @@ uint8_t process_OW(void) {
 
 	if (ow_task_scheduler & PROCESS_TX_CPLT)
 	{
+		switch (ow.state) {//че у нас за датчик
+		case ow_read_scratchpad:
+			break;
+
+		case ow_write_scratchpad:
+			break;
+
+		case ow_convert_temperature:
+			break;
+
+		case DS18S20:
+			break;
+
+		default:
+			// error handler
+			break;
+		}
 
 		ow_task_scheduler &= ~PROCESS_TX_CPLT;
+	}
+
+
+
+	if (ow_task_scheduler & OW_PROCESS_READ_TEMP)
+	{
+		switch ((ow.ids[current_temp_device]).family) {//че у нас за датчик
+		case DS18B20:
+			// будет возвращено значение предыдущего измерения!
+			t = readTemperature(&ow, &ow.ids[current_temp_device], 1);
+			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			Temp[current_temp_device] = (int16_t)t.inCelsus*10 + t.frac;
+			break;
+
+		case DS18S20:
+			t = readTemperature(&ow, &ow.ids[current_temp_device], 1);
+			//Temp[i] = (float)(t.inCelsus*10+t.frac)/10.0;
+			Temp[current_temp_device] = (int16_t)t.inCelsus*10 + t.frac;
+			break;
+
+		case 0x00:
+			break;
+
+		default:
+			// error handler
+			break;
+		}
+
+		ow_task_scheduler &= ~OW_PROCESS_READ_TEMP;
 	}
 
 	return 0;

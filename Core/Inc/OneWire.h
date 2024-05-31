@@ -36,6 +36,10 @@
 #define OW_READ   0xff
 
 
+#define OW_NO_TASK					0x00
+#define OW_PROCESS_TX_CPLT			0x01
+#define OW_PROCESS_READ_TEMP		0x80
+
 extern int16_t Temp[MAXDEVICES_ON_THE_BUS];
 
 
@@ -80,13 +84,26 @@ typedef enum {
 
 }OW_CMD;
 
+typedef enum {
+	ow_state_none = 0,
+	ow_read_scratchpad,
+	ow_write_scratchpad,
+	ow_copy_scratchpad,
+	ow_recall_E2_cmd,
+	read_temperature,
+	ow_convert_temperature,
+	ow_search_cmd,
+}OW_STATE;
+
 typedef struct {
   RomCode ids[MAXDEVICES_ON_THE_BUS];//для всех ромов наших датчиков
   int lastDiscrepancy;
   uint8_t lastROM[8];//последний считанный ROM для поиска всех ROM
   uint8_t rx_buffer;
-  uint8_t tx_buffer[64];
+  uint8_t tx_buffer[92];
+  volatile uint8_t recvFlag;
   OW_CMD	cmd;
+  OW_STATE	state;
 } OneWire;
 
 
@@ -106,7 +123,7 @@ void owSkipRomCmd(OneWire *ow);
 
 uint8_t owCRC8(RomCode *rom);
 
-void owMatchRomCmd(RomCode *rom);
+void owMatchRomCmd(RomCode *rom, uint8_t cmd);
 
 void owConvertTemperatureCmd(OneWire *ow, RomCode *rom);
 
@@ -118,7 +135,7 @@ void owRecallE2Cmd(OneWire *ow, RomCode *rom);
 
 Temperature readTemperature(OneWire *ow, RomCode *rom, uint8_t reSense);
 
-void owSend(uint16_t data);
+void owSend(uint8_t data);
 
 void owSendByte(uint8_t data);
 
