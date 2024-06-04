@@ -37,7 +37,8 @@
 
 
 #define OW_NO_TASK					0x00
-#define OW_PROCESS_TX_CPLT			0x01
+#define OW_PROCESS_RX_CPLT			0x01
+#define OW_PROCESS_TX_CPLT			0x02
 #define OW_PROCESS_READ_TEMP		0x80
 
 extern int16_t Temp[MAXDEVICES_ON_THE_BUS];
@@ -102,6 +103,7 @@ typedef struct {
   uint8_t rx_buffer;
   uint8_t tx_buffer[92];
   volatile uint8_t recvFlag;
+  volatile uint8_t txFlag;
   OW_CMD	cmd;
   OW_STATE	state;
 } OneWire;
@@ -115,7 +117,7 @@ typedef struct {
 
 void usart_setup_(uint32_t baud);
 
-uint16_t owResetCmd(void);
+uint8_t owResetCmd(void);
 
 int owSearchCmd(OneWire *ow);
 
