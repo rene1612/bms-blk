@@ -58,25 +58,25 @@ typedef struct {
 
 
 typedef struct {
-  uint8_t crc;
-  uint8_t reserved[3];
-  uint8_t configuration;
-  uint8_t tl;
-  uint8_t th;
-  uint8_t temp_msb;
   uint8_t temp_lsb;
+  uint8_t temp_msb;
+  uint8_t th;
+  uint8_t tl;
+  uint8_t configuration;
+  uint8_t reserved[3];
+  uint8_t crc;
 } Scratchpad_DS18B20;//
 
 
 typedef struct {
-  uint8_t crc;
-  uint8_t count_per;
-  uint8_t count_remain;
-  uint8_t reserved[2];
-  uint8_t tl;
-  uint8_t th;
-  uint8_t temp_msb;
   uint8_t temp_lsb;
+  uint8_t temp_msb;
+  uint8_t th;
+  uint8_t tl;
+  uint8_t reserved[2];
+  uint8_t count_remain;
+  uint8_t count_per;
+  uint8_t crc;
 } Scratchpad_DS18S20;//
 
 
@@ -94,6 +94,7 @@ typedef enum {
 	read_temperature,
 	ow_convert_temperature,
 	ow_search_cmd,
+	ow_reset,
 }OW_STATE;
 
 typedef struct {

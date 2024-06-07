@@ -186,7 +186,8 @@ void owReadHandler() { //обработчик прерыания USART
 void owSend(uint8_t data) {
 	ow.recvFlag |= (1 << 0);//устанавливаем флаг если попадем в обработчик прерывания там он сбросится
 
-	USART_SendData(&ow_uart, &data, 1);//отправляем данные
+	ow.tx_buffer[0] = data;
+	USART_SendData(&ow_uart, ow.tx_buffer, 1);//отправляем данные
 
 	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
 //	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//wait for tx to complete
@@ -220,6 +221,7 @@ uint8_t owResetCmd() {
 	
 	usart_setup(9600);
 
+	ow.state = ow_reset;
 	owSend(0xF0); // Send RESET отправляем импуль сброса
 	owPresence = owEchoRead(); // Ждём PRESENCE на шине и вовзращаем, что есть
 
@@ -274,7 +276,6 @@ uint8_t *byteToBits(uint8_t ow_byte, uint8_t *bits) {//разлагаем 1 ба
 void owSendByte(uint8_t d) {
 
 	byteToBits(d, ow.tx_buffer);	//
-
 
 	USART_SendData(&ow_uart, ow.tx_buffer, 8);
 }
@@ -452,7 +453,13 @@ int owSearchCmd(OneWire *ow) {
  */
 void owSkipRomCmd(OneWire *ow) {//отправляет команду пропуска ROM после этого следующая команда будет
 	owResetCmd();                 //для всех устройств на шине
+
 	owSendByte(ONEWIRE_SKIP_ROM);
+
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+//	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//wait for tx to complete
+	while(ow->txFlag & (1 << 0));//wait for tx to complete
+	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
 
@@ -517,7 +524,7 @@ uint8_t *owReadScratchpadCmd(OneWire *ow, RomCode *rom, uint8_t *data) {//чит
 	switch (rom->family) {
 		case DS18B20:
 		case DS18S20:
-			p = 72;  //9*8 =72 == равняется 9 байт данных
+			p = 72;  //9*8 =72
 			break;
 
 		default:
@@ -532,7 +539,8 @@ uint8_t *owReadScratchpadCmd(OneWire *ow, RomCode *rom, uint8_t *data) {//чит
 
 
 	while (b < p) {// пока мы не обработали 9 байт
-		uint8_t pos = (uint8_t) ((p - 8) / 8 - (b / 8)); //позиция обрабатываемого байта
+		//uint8_t pos = (uint8_t) ((p - 8) / 8 - (b / 8)); //позиция обрабатываемого байта
+		uint8_t pos = (uint8_t) (b / 8); //позиция обрабатываемого байта
 		uint8_t bt;
 
 		owSend(OW_READ);
@@ -591,6 +599,7 @@ Temperature readTemperature(OneWire *ow, RomCode *rom, uint8_t reSense) {
 	Scratchpad_DS18S20 *spP;
 	Temperature t;
 	uint8_t pad[9];
+	uint8_t crc=0;
 
 	t.inCelsus = 0x00;
 	t.frac = 0x00;
@@ -600,6 +609,12 @@ Temperature readTemperature(OneWire *ow, RomCode *rom, uint8_t reSense) {
 	switch (rom->family) {
 		case DS18B20:
 			owReadScratchpadCmd(ow, rom, pad);//читаем память  для DS18B20
+
+			crc = owCRC(pad, 8);
+
+			if (crc != sp->crc)
+				break;
+
 			t.inCelsus = (int8_t) (sp->temp_msb << 4) | (sp->temp_lsb >> 4);//целая часть
 			t.frac = (uint8_t) ((((sp->temp_lsb & 0x0F)) * 10) >> 4);//дробная
 			break;
@@ -717,6 +732,9 @@ uint8_t process_OW(void) {
 	if (ow_task_scheduler & OW_PROCESS_RX_CPLT)
 	{
 		switch (ow.state) {//че у нас за датчик
+		case ow_reset:
+			ow.state = ow_state_none;
+			break;
 		case ow_read_scratchpad:
 			break;
 
@@ -746,7 +764,27 @@ uint8_t process_OW(void) {
 			Temp[current_temp_device] = (int16_t)t.inCelsus*10 + t.frac;
 
 			if (++current_temp_device < devices) {
-				ow_task_scheduler |= OW_PROCESS_READ_TEMP;
+				//ow_task_scheduler |= OW_PROCESS_READ_TEMP;
+				owMatchRomCmd(&ow.ids[current_temp_device], ONEWIRE_READ_SCRATCHPAD);//
+				ow.state=ow_read_scratchpad;
+			}
+			else {
+				//owConvertTemperatureCmd(&ow, &ow.ids[current_temp_device]);
+
+//				uint8_t cB, cmp_cB = 0;
+//				owResetCmd();
+//				owSkipRomCmd(&ow);
+//				owSend(ONEWIRE_CONVERT_TEMPERATURE);
+//				owSend(OW_READ); // чтение прямого бита
+//				cB = owReadSlot(owEchoRead());//ответ от датчика
+
+//				if (cB == 1)//сравниваем два ответа
+//					ow.state = ow_convert_temperature;
+
+
+				//owSkipRomCmd(&ow);
+				//owSend(ONEWIRE_CONVERT_TEMPERATURE);
+				//ow.state = ow_convert_temperature;
 			}
 			break;
 
@@ -770,7 +808,13 @@ uint8_t process_OW(void) {
 	/***********************************************************************/
 	if (ow_task_scheduler & OW_PROCESS_READ_TEMP)
 	{
-		owConvertTemperatureCmd(&ow, &ow.ids[current_temp_device]);
+		owSkipRomCmd(&ow);
+		owSend(ONEWIRE_CONVERT_TEMPERATURE);
+		ow.state=ow_convert_temperature;
+
+//		owMatchRomCmd(&ow.ids[current_temp_device], ONEWIRE_READ_SCRATCHPAD);//
+//		ow.state=ow_read_scratchpad;
+
 
 		ow_task_scheduler &= ~OW_PROCESS_READ_TEMP;
 	}
