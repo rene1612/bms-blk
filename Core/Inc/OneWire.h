@@ -37,7 +37,8 @@
 
 
 #define OW_NO_TASK					0x00
-#define OW_PROCESS_TX_CPLT			0x01
+#define OW_PROCESS_RX_CPLT			0x01
+#define OW_PROCESS_TX_CPLT			0x02
 #define OW_PROCESS_READ_TEMP		0x80
 
 extern int16_t Temp[MAXDEVICES_ON_THE_BUS];
@@ -57,25 +58,25 @@ typedef struct {
 
 
 typedef struct {
-  uint8_t crc;
-  uint8_t reserved[3];
-  uint8_t configuration;
-  uint8_t tl;
-  uint8_t th;
-  uint8_t temp_msb;
   uint8_t temp_lsb;
+  uint8_t temp_msb;
+  uint8_t th;
+  uint8_t tl;
+  uint8_t configuration;
+  uint8_t reserved[3];
+  uint8_t crc;
 } Scratchpad_DS18B20;//
 
 
 typedef struct {
-  uint8_t crc;
-  uint8_t count_per;
-  uint8_t count_remain;
-  uint8_t reserved[2];
-  uint8_t tl;
-  uint8_t th;
-  uint8_t temp_msb;
   uint8_t temp_lsb;
+  uint8_t temp_msb;
+  uint8_t th;
+  uint8_t tl;
+  uint8_t reserved[2];
+  uint8_t count_remain;
+  uint8_t count_per;
+  uint8_t crc;
 } Scratchpad_DS18S20;//
 
 
@@ -93,6 +94,7 @@ typedef enum {
 	read_temperature,
 	ow_convert_temperature,
 	ow_search_cmd,
+	ow_reset,
 }OW_STATE;
 
 typedef struct {
@@ -102,6 +104,7 @@ typedef struct {
   uint8_t rx_buffer;
   uint8_t tx_buffer[92];
   volatile uint8_t recvFlag;
+  volatile uint8_t txFlag;
   OW_CMD	cmd;
   OW_STATE	state;
 } OneWire;
@@ -115,7 +118,7 @@ typedef struct {
 
 void usart_setup_(uint32_t baud);
 
-uint16_t owResetCmd(void);
+uint8_t owResetCmd(void);
 
 int owSearchCmd(OneWire *ow);
 

@@ -203,7 +203,7 @@ int main(void)
   }
 
   //
-  PBalancer_init();
+//  PBalancer_init();
 
   //start one-wire temperature sensors
   get_ROMid();
@@ -212,7 +212,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim4);
 
   //start all neey releated stuff
-  MX_NEEY_Init();
+//  MX_NEEY_Init();
 
   /* USER CODE END 2 */
 
