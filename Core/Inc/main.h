@@ -89,11 +89,11 @@ extern uint8_t alive_timer;
 
 /* USER CODE END Private defines */
 
-typedef enum
-{
-	ACK = 0x11,
-	NACK= 0x13
-}_REPLAY_TYPE;
+//typedef enum
+//{
+//	ACK = 0x11,
+//	NACK= 0x13
+//}_REPLAY_TYPE;
 
 
 typedef enum
@@ -107,10 +107,12 @@ typedef enum
 }_SYS_STATE;
 
 
+/*
 typedef enum
 {
 	NO_CMD = 0,
 \
+\	 SYSK-COMMANDS (Boardtype: ALL)
 	SYS_READ_REG_CMD,
 	SYS_WRITE_REG_CMD,
 	SYS_RESET_CMD,
@@ -120,12 +122,14 @@ typedef enum
 	REPLAY_AKC_NACK_CMD = 0x11,
 	REPLAY_DATA_CMD = 0x13,
 \
+\	 BMS-BLK-COMMANDS (Boardtype: BMS_BLK_BOARD)
 	PB_SET_CMD = 0x20,
 	PB_SET_OE_CMD,
 	NEEY_SET_CMD,
 \
 	END_CMD
 }_CAN_CMD;
+*/
 
 
 /**

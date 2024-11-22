@@ -89,7 +89,7 @@ uint8_t	process_PBalancer(void)
 
 			if (pb_ctrl.ch_ebable_mask & 1<<ch) {
 
-				if (pb_ctrl.ch_val==0) {
+				if (pb_ctrl.ch_val[ch]==0) {
 					pb_ctrl.ch_ebable_mask &= ~(1<<ch);
 				}else {
 
