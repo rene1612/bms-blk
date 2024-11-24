@@ -33,6 +33,19 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "neey.h"
 #include "OneWire.h"
+
+
+#ifndef __BOARD_TYPE__
+	#define __BOARD_TYPE__				((_BOARD_TYPE)BMS_BLK_BOARD)
+#endif
+
+//
+#define __BRD_ID__						0x05
+
+#ifndef __DEV_ID__
+	#define __DEV_ID__					(__BOARD_TYPE__ + __BRD_ID__)
+#endif
+
 #include <dev_config.h>
 
 /* USER CODE END Includes */
