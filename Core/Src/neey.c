@@ -311,9 +311,10 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		for(i=0; i < NEEY_CHANNEL_COUNT; i++) {
 			neey_ctrl.cell_data[i].voltage =(uint16_t)(p_rec_data_pkt->CellVoltage[i]*1000);
 			neey_ctrl.cell_data[i].resistance =(uint16_t)(p_rec_data_pkt->CellValue[i]*1000);
+			neey_ctrl.cell_data[i].flag = 0;
 		}
 
-		neey_ctrl.neey_dev_data.AmtVol = (uint16_t)(p_rec_data_pkt->AmtVol*1000);
+		neey_ctrl.neey_dev_data.AmtVol = (uint32_t)(p_rec_data_pkt->AmtVol*1000);
 		neey_ctrl.neey_dev_data.AveVol = (uint16_t)(p_rec_data_pkt->AveVol*1000);
 		neey_ctrl.neey_dev_data.DiffVol = (uint16_t)(p_rec_data_pkt->DiffVol*1000);
 		neey_ctrl.neey_dev_data.Temperatur = (int16_t)(p_rec_data_pkt->Temperatur1*100);

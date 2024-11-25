@@ -36,7 +36,7 @@ extern "C" {
 
 
 #ifndef __BOARD_TYPE__
-	#define __BOARD_TYPE__				((_BOARD_TYPE)BMS_BLK_BOARD)
+	#define __BOARD_TYPE__				BMS_BLK_BOARD
 #endif
 
 //
@@ -70,11 +70,13 @@ extern uint8_t alive_timer;
 #define APP_CAN_BITRATE			500000UL
 
 #define __DEV_SIGNATURE__		0x12
-#define __SW_RELEASE__			0x0090
-#define SW_RELEASE_DAY			31
-#define SW_RELEASE_MONTH		5
+#define __SW_RELEASE__			0x0101
+#define SW_RELEASE_DAY			25
+#define SW_RELEASE_MONTH		11
 #define SW_RELEASE_YEAR			2024
 #define __SW_RELEASE_DATE__		((SW_RELEASE_DAY<<24 ) | (SW_RELEASE_MONTH<<18) | SW_RELEASE_YEAR)
+#define __SW_NAME__				"BMS-BLK-APP"
+
 
 
  /**
@@ -221,41 +223,90 @@ typedef enum
  }_MAIN_REGS;
 
 
- /**
-  * @struct	REG
-  * @brief	Registersatz des Controllers.
-  *
-  * @note	Der Registersatz wird im RAM und im EEProm gehalten
-  */
-  typedef struct
-  {
- /**
-  * @var	unsigned int sw_release
-  * @brief	Register mit der Softwareversion
-  * @see	__SW_RELEASE__
-  * @see	SW_REL_REG
-  * @see	config.h
-  */
-  uint16_t		sw_release;
+#pragma pack(push,1)
 
- /**
-  * @var	unsigned int sw_release_date
-  * @brief	Register mit dem Datum der Softwareversion
-  * Formatierung:
-  *	- Byte 0 -> Tag
-  *	- BYTE 1 -> Monat
-  *	- BYTE 2 -> Jahr
-  *	- BYTE 3 -> Jahr
-  * @see	__SW_RELEASE_DATE__
-  * @see	SW_REL_DATE_REG
-  * @see	config.h
-  */
-  uint32_t		sw_release_date;
+/**
+ * @struct	REG
+ * @brief	Registersatz des Controllers.
+ *
+ * @note	Der Registersatz wird im RAM und im EEProm gehalten
+ */
+ typedef struct
+ {
+ const char 	sw_name[20];
 
-  uint64_t		sw_git_short_hash;
+/**
+ * @var	unsigned int sw_release
+ * @brief	Register mit der Softwareversion
+ * @see	__SW_RELEASE__
+ * @see	SW_REL_REG
+ * @see	config.h
+ */
+ uint16_t		sw_release;
 
-  const char	sw_git_tag[16];
- }_SW_INFO_REGS;
+/**
+ * @var	unsigned int sw_release_date
+ * @brief	Register mit dem Datum der Softwareversion
+ * Formatierung:
+ *	- Byte 0 -> Tag
+ *	- BYTE 1 -> Monat
+ *	- BYTE 2 -> Jahr
+ *	- BYTE 3 -> Jahr
+ * @see	__SW_RELEASE_DATE__
+ * @see	SW_REL_DATE_REG
+ * @see	config.h
+ */
+ uint32_t		sw_release_date;
+
+ uint64_t		sw_git_short_hash;
+
+ const char	sw_git_tag[20];
+}_SW_INFO_REGS;
+
+
+typedef struct
+{
+uint8_t			bms_data_type;
+uint8_t			flags_ch_number;
+uint16_t		cell_voltage;
+uint16_t		cell_resistance;
+uint16_t		cell_temperature;
+//uint8_t			cell_flags;
+}_BMS_CELL_DATA;
+
+
+typedef struct
+{
+uint8_t			bms_data_type;
+uint8_t			flags_ch_number;
+uint32_t		amt_voltage;
+}_BMS_BLK_DATA1;
+
+typedef struct
+{
+uint8_t			bms_data_type;
+uint8_t			flags_ch_number;
+uint16_t		ave_voltage;
+uint16_t		div_voltage;
+}_BMS_BLK_DATA2;
+
+typedef struct
+{
+uint8_t			bms_data_type;
+uint8_t			flags_ch_number;
+uint16_t		bal_current;
+int16_t			neey_temperatur;
+}_BMS_BLK_DATA3;
+
+#pragma pack(pop)
+
+
+typedef union
+{
+ uint8_t			array_data[sizeof(_BMS_CELL_DATA)];
+
+_BMS_CELL_DATA		bms_cell_data;
+}_BMS_CELL_DATA_UNION;
 
 
  /**

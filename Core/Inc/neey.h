@@ -90,6 +90,13 @@ typedef enum {
 
 
 /**
+  * Neey flag defines for cell-state
+ * */
+#define	NEEY_CELL_CHARGING				0x01
+#define	NEEY_CELL_DISCHARGING			0x02
+
+
+/**
   * Neey Task-Scheduler defines
   * */
 #define PROCESS_NEEY_NO_TASK			0x00
@@ -154,8 +161,9 @@ typedef struct
   */
 typedef struct
 {
-	uint16_t		voltage;
-	uint16_t		resistance;					/*!< string mit versionsnummern HW...,ZH....,V....  */
+	uint16_t		voltage;					/*!< Spannung der Zelle  */
+	uint16_t		resistance;					/*!< Leitungswiderstand  */
+	uint8_t			flag;						/*!< laden, entladen ....  */
 } _NEEY_CELL_DATA;
 
 
@@ -164,7 +172,7 @@ typedef struct
   */
 typedef struct
 {
-	uint16_t 	AmtVol;								/*!< pack voltage of all cells  */
+	uint32_t 	AmtVol;								/*!< pack voltage of all cells  */
 	uint16_t 	AveVol;								/*!< average voltage of all cells  */
 	uint16_t 	DiffVol;							/*!< diff-voltage max cell volt. - min cell volt.  */
 	int16_t 	BalCurrent;							/*!< current balance current  */

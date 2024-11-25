@@ -65,23 +65,25 @@ uint16_t timer_10ms;
 
 #ifdef __DEBUG__
 __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_regs = {
-		__DEV_ID__,
-		__BOARD_TYPE__,
-		__BOARD_VERSION__,
-		DEAULT_BL_CAN_BITRATE,
-		DEAULT_APP_CAN_BITRATE,
-		__BOARD_MF_DATE__
+	__DEV_ID__,
+	__BOARD_TYPE__,
+	"BMS-BLK",
+	__BOARD_VERSION__,
+	__BOARD_MF_DATE__,
+	DEAULT_BL_CAN_BITRATE,
+	DEAULT_APP_CAN_BITRATE
 };
 #endif
 
 
-__attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] = "BMS-BLK-APP";
+__attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] = "BMS-BLK";
 
 __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
-		__SW_RELEASE__,
-		__SW_RELEASE_DATE__,
-		0x3cd7450ab698ad24,
-		"no tag"
+	__SW_NAME__,
+	__SW_RELEASE__,
+	__SW_RELEASE_DATE__,
+	0x3cd7450ab698ad24,
+	"no tag"
 };
 
 
@@ -227,7 +229,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim4);
 
   //start all neey releated stuff
-//  MX_NEEY_Init();
+  MX_NEEY_Init();
 
   /* USER CODE END 2 */
 
@@ -344,6 +346,9 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+
 
 //*****************************************************************************
 //

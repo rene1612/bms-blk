@@ -48,6 +48,8 @@ extern uint8_t				can_task_scheduler;
 #define PROCESS_CAN_SEND_NEW_NEEY_DATA 	0x01
 #define PROCESS_CAN_ON_MSG				0x02
 #define PROCESS_CAN_SEND_REPLAY			0x04
+#define PROCESS_CAN_SEND_NEW_CELL_DATA  0x08
+#define PROCESS_CAN_SEND_NEW_BLK_DATA	0x10
 
 /* USER CODE END Private defines */
 
@@ -55,6 +57,10 @@ void MX_CAN_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 uint8_t		process_CAN(void);
+
+void can_send_allert_msg(uint8_t allert_msg);
+void can_send_trip_msg(void);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
