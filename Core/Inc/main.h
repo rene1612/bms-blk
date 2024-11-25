@@ -122,31 +122,6 @@ typedef enum
 }_SYS_STATE;
 
 
-/*
-typedef enum
-{
-	NO_CMD = 0,
-\
-\	 SYSK-COMMANDS (Boardtype: ALL)
-	SYS_READ_REG_CMD,
-	SYS_WRITE_REG_CMD,
-	SYS_RESET_CMD,
-	SYS_APP_RESET_CMD,
-	SYS_BOOT_CMD,
-	ALIVE_CMD,
-	REPLAY_AKC_NACK_CMD = 0x11,
-	REPLAY_DATA_CMD = 0x13,
-\
-\	 BMS-BLK-COMMANDS (Boardtype: BMS_BLK_BOARD)
-	PB_SET_CMD = 0x20,
-	PB_SET_OE_CMD,
-	NEEY_SET_CMD,
-\
-	END_CMD
-}_CAN_CMD;
-*/
-
-
 /**
  * @struct	REG
  * @brief	Registersatz des Controllers.
@@ -206,63 +181,19 @@ typedef enum
  typedef struct
  {
 	uint8_t						ctrl;
-
 	_SYS_STATE					sys_state;
-
 	uint8_t						monitor_led_state;
-
 	uint8_t						alive_timeout;
-
 	uint32_t					can_rx_cmd_id;
 	uint32_t					can_tx_data_id;
 	uint32_t					can_tx_heartbeat_id;
 	uint32_t 					can_filterMask;
 	uint32_t 					can_filterID; // Only accept bootloader CAN message ID
-
 	_BMS_BLK_CONFIG_REGS		cfg_regs;
  }_MAIN_REGS;
 
 
 #pragma pack(push,1)
-
-/**
- * @struct	REG
- * @brief	Registersatz des Controllers.
- *
- * @note	Der Registersatz wird im RAM und im EEProm gehalten
- */
- typedef struct
- {
- const char 	sw_name[20];
-
-/**
- * @var	unsigned int sw_release
- * @brief	Register mit der Softwareversion
- * @see	__SW_RELEASE__
- * @see	SW_REL_REG
- * @see	config.h
- */
- uint16_t		sw_release;
-
-/**
- * @var	unsigned int sw_release_date
- * @brief	Register mit dem Datum der Softwareversion
- * Formatierung:
- *	- Byte 0 -> Tag
- *	- BYTE 1 -> Monat
- *	- BYTE 2 -> Jahr
- *	- BYTE 3 -> Jahr
- * @see	__SW_RELEASE_DATE__
- * @see	SW_REL_DATE_REG
- * @see	config.h
- */
- uint32_t		sw_release_date;
-
- uint64_t		sw_git_short_hash;
-
- const char	sw_git_tag[20];
-}_SW_INFO_REGS;
-
 
 typedef struct
 {
@@ -271,9 +202,7 @@ uint8_t			flags_ch_number;
 uint16_t		cell_voltage;
 uint16_t		cell_resistance;
 uint16_t		cell_temperature;
-//uint8_t			cell_flags;
 }_BMS_CELL_DATA;
-
 
 typedef struct
 {
