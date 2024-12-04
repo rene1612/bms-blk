@@ -85,7 +85,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					break;
 
 				case param:
-					if (Size == sizeof(_NEEY_RecDevParmTypeDef)) {//so we have an info packet?
+					if (Size == sizeof(_NEEY_RecDevParmTypeDef)) {//so we have an parm packet?
 					  main_task_scheduler |= PROCESS_NEEY;
 					  neey_task_scheduler |= PROCESS_NEEY_PARAM;
 					}else
@@ -151,6 +151,7 @@ void MX_NEEY_Init(void)
 	neey_ctrl.cur_rx_transfer.rx_byte_count = 0;
 	neey_ctrl.cur_rx_transfer.state = SCAN_PKT_START;
 	neey_ctrl.data_pkt_counter = 0;
+	neey_ctrl.last_checked_data_pkt_counter=0;
 	neey_task_scheduler = PROCESS_NEEY_NO_TASK;
 
 
@@ -205,6 +206,19 @@ void HAL_NEEY_MspDeInit(NEEY_HandleTypeDef* neeyHandle)
 }
 
 
+//*****************************************************************************
+//
+//! send config data to neey in case they differ from default setup
+//!
+//! \fn uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len)
+//!
+//! \param:		sub_type	sub type of param @see
+//! \param:		p_data
+//! \param:		len			length of param-field to send
+//!
+//! \return HAL_OK/HAL_ERROR
+//
+//*****************************************************************************
 uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len) {
 
 	if (sub_type && sub_type<NEEY_SUB_TYPE_EquVol && len && len < 8) {
@@ -216,6 +230,15 @@ uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len) {
 	return HAL_ERROR;
 }
 
+//*****************************************************************************
+//
+//! send config data to neey in case they differ from default setup
+//!
+//! \fn void check_and_send_config_data_NEEY(void)
+//!
+//! \return none
+//
+//*****************************************************************************
 void check_and_send_config_data_NEEY(void) {
 
 	uint8_t init_buffer[10]={};
@@ -287,6 +310,17 @@ void check_and_send_config_data_NEEY(void) {
 }
 
 
+//*****************************************************************************
+//
+//! packet with neey-data received via serial (normally every 500 ms)
+//!
+//! \fn uint8_t check_data_pkt_NEEY(void* p_pkt_buf)
+//!
+//! param: p_pkt_buf 	pointer to data packet
+//!
+//! \return HAL_OK for success, else HAL_ERROR
+//
+//*****************************************************************************
 uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 
 	uint8_t cs=0;
@@ -294,6 +328,7 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 	uint16_t index;
 	uint8_t* p_pkt = (uint8_t*)p_pkt_buf;
 	_NEEY_RecDataTypeDef* p_rec_data_pkt = (_NEEY_RecDataTypeDef*)p_pkt_buf;
+	uint8_t alert_msg[6];
 
 	if (p_rec_data_pkt->PacketStart != NEEY_PACKET_START_RX)
 		return HAL_ERROR;
@@ -308,10 +343,74 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 
 		neey_ctrl.data_lock = 1;
 
-		for(i=0; i < NEEY_CHANNEL_COUNT; i++) {
+		for(i=0; i < neey_ctrl.neey_dev_info.CellCount; i++) {
 			neey_ctrl.cell_data[i].voltage =(uint16_t)(p_rec_data_pkt->CellVoltage[i]*1000);
 			neey_ctrl.cell_data[i].resistance =(uint16_t)(p_rec_data_pkt->CellValue[i]*1000);
 			neey_ctrl.cell_data[i].flag = 0;
+
+			//check voltage if needed
+			if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_CELL_VOLTAGE)){
+				if(main_regs.cfg_regs.alert_thresholds.cell_voltage.enable_mask&ENABLE_MAX_THRESHOLD){
+					if(neey_ctrl.cell_data[i].voltage >= main_regs.cfg_regs.alert_thresholds.cell_voltage.max){
+						//CellVoltage max Allert
+
+						if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_CELL_VOLTAGE)){
+							//send and do the cirtical allert things
+							alert_msg[0]=ERR_CELL_VOLTAGE;
+							alert_msg[1]=ENABLE_MAX_THRESHOLD;
+							alert_msg[2]=i;
+							*((uint16_t*)&alert_msg[3])=(uint16_t)neey_ctrl.cell_data[i].voltage;
+							DoAlert(alert_msg,5);
+						}
+					}
+				}
+				if(main_regs.cfg_regs.alert_thresholds.cell_voltage.enable_mask&ENABLE_MIN_THRESHOLD){
+					if(neey_ctrl.cell_data[i].voltage <= main_regs.cfg_regs.alert_thresholds.cell_voltage.min){
+						//CellVoltage min Allert
+
+						if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_CELL_VOLTAGE)){
+							//send and do the cirtical allert things
+							alert_msg[0]=ERR_CELL_VOLTAGE;
+							alert_msg[1]=ENABLE_MIN_THRESHOLD;
+							alert_msg[2]=i;
+							*((uint16_t*)&alert_msg[3])=(uint16_t)neey_ctrl.cell_data[i].voltage;
+							DoAlert(alert_msg,5);
+						}
+					}
+				}
+			}
+
+			//check resistance     if needed
+			if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_CELL_RESISTANCE)){
+				if(main_regs.cfg_regs.alert_thresholds.cell_resistance.enable_mask&ENABLE_MAX_THRESHOLD){
+					if(neey_ctrl.cell_data[i].resistance >= main_regs.cfg_regs.alert_thresholds.cell_resistance.max){
+						//CellResistance max Allert
+
+						if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_CELL_RESISTANCE)){
+							//send and do the cirtical allert things
+							alert_msg[0]=ERR_CELL_RESISTANCE;
+							alert_msg[1]=ENABLE_MAX_THRESHOLD;
+							alert_msg[2]=i;
+							*((uint16_t*)&alert_msg[3])=(uint16_t)neey_ctrl.cell_data[i].resistance;
+							DoAlert(alert_msg,5);
+						}
+					}
+				}
+				if(main_regs.cfg_regs.alert_thresholds.cell_resistance.enable_mask&ENABLE_MIN_THRESHOLD){
+					if(neey_ctrl.cell_data[i].resistance <= main_regs.cfg_regs.alert_thresholds.cell_resistance.min){
+						//CellResistance min Allert
+
+						if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_CELL_RESISTANCE)){
+							//send and do the cirtical allert things
+							alert_msg[0]=ERR_CELL_RESISTANCE;
+							alert_msg[1]=ENABLE_MIN_THRESHOLD;
+							alert_msg[2]=i;
+							*((uint16_t*)&alert_msg[3])=(uint16_t)neey_ctrl.cell_data[i].resistance;
+							DoAlert(alert_msg,5);
+						}
+					}
+				}
+			}
 		}
 
 		neey_ctrl.neey_dev_data.AmtVol = (uint32_t)(p_rec_data_pkt->AmtVol*1000);
@@ -319,6 +418,66 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		neey_ctrl.neey_dev_data.DiffVol = (uint16_t)(p_rec_data_pkt->DiffVol*1000);
 		neey_ctrl.neey_dev_data.Temperatur = (int16_t)(p_rec_data_pkt->Temperatur1*100);
 		neey_ctrl.neey_dev_data.BalCurrent = (int16_t)(p_rec_data_pkt->BalCurrent*1000);
+
+		//check blk voltage if needed
+		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_BLK_VOLTAGE)){
+			if(main_regs.cfg_regs.alert_thresholds.blk_voltage.enable_mask&ENABLE_MAX_THRESHOLD){
+				if(neey_ctrl.neey_dev_data.AmtVol >= (uint32_t)(main_regs.cfg_regs.alert_thresholds.blk_voltage.max * 10)){
+					//BLKVoltage max Allert
+
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_BLK_VOLTAGE)){
+						//send and do the cirtical allert things
+						alert_msg[0]=ERR_BLK_VOLTAGE;
+						alert_msg[1]=ENABLE_MAX_THRESHOLD;
+						*((uint32_t*)&alert_msg[2])=neey_ctrl.neey_dev_data.AmtVol;
+						DoAlert(alert_msg,6);
+					}
+				}
+			}
+			if(main_regs.cfg_regs.alert_thresholds.blk_voltage.enable_mask&ENABLE_MIN_THRESHOLD){
+				if(neey_ctrl.neey_dev_data.AmtVol <= (uint32_t)(main_regs.cfg_regs.alert_thresholds.blk_voltage.min * 10)){
+					//BLKVoltage min Allert
+
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_BLK_VOLTAGE)){
+						//send and do the cirtical allert things
+						alert_msg[0]=ERR_BLK_VOLTAGE;
+						alert_msg[1]=ENABLE_MIN_THRESHOLD;
+						*((uint32_t*)&alert_msg[2])=neey_ctrl.neey_dev_data.AmtVol;
+						DoAlert(alert_msg,6);
+					}
+				}
+			}
+		}
+
+		//check diff voltage if needed
+		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_BLK_DIFF_VOLTAGE)){
+			if(main_regs.cfg_regs.alert_thresholds.blk_voltage_diff.enable_mask&ENABLE_MAX_THRESHOLD){
+				if(neey_ctrl.neey_dev_data.DiffVol >= main_regs.cfg_regs.alert_thresholds.blk_voltage_diff.max){
+					//BLKFiffVoltage max Allert
+
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_BLK_DIFF_VOLTAGE)){
+						//send and do the cirtical allert things
+						alert_msg[0]=ERR_BLK_VOLTAGE_DIFF;
+						alert_msg[1]=ENABLE_MAX_THRESHOLD;
+						*((uint16_t*)&alert_msg[2])=(uint16_t)neey_ctrl.neey_dev_data.DiffVol;
+						DoAlert(alert_msg,4);
+					}
+				}
+			}
+			if(main_regs.cfg_regs.alert_thresholds.blk_voltage_diff.enable_mask&ENABLE_MIN_THRESHOLD){
+				if(neey_ctrl.neey_dev_data.DiffVol <= main_regs.cfg_regs.alert_thresholds.blk_voltage_diff.min){
+					//BLKFiffVoltage min Allert
+
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_BLK_DIFF_VOLTAGE)){
+						//send and do the cirtical allert things
+						alert_msg[0]=ERR_BLK_VOLTAGE_DIFF;
+						alert_msg[1]=ENABLE_MIN_THRESHOLD;
+						*((uint16_t*)&alert_msg[2])=(uint16_t)neey_ctrl.neey_dev_data.DiffVol;
+						DoAlert(alert_msg,4);
+					}
+				}
+			}
+		}
 
 		//todo
 		// get the other data that are unknown by now
@@ -333,6 +492,17 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 }
 
 
+//*****************************************************************************
+//
+//! packet with neey-info-data received via serial (normally after start)
+//!
+//! \fn uint8_t check_info_pkt_NEEY(void* p_pkt_buf)
+//!
+//! param: p_pkt_buf 	pointer to data packet
+//!
+//! \return HAL_OK for success, else HAL_ERROR
+//
+//*****************************************************************************
 uint8_t	check_info_pkt_NEEY(void* p_pkt_buf) {
 
 	uint8_t cs=0;
@@ -359,6 +529,17 @@ uint8_t	check_info_pkt_NEEY(void* p_pkt_buf) {
 }
 
 
+//*****************************************************************************
+//
+//! packet with neey-params received via serial (normally after start)
+//!
+//! \fn uint8_t check_param_pkt_NEEY(void* p_pkt_buf)
+//!
+//! param: p_pkt_buf 	pointer to data packet
+//!
+//! \return HAL_OK for success, else HAL_ERROR
+//
+//*****************************************************************************
 uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
 
 	uint8_t cs=0;
@@ -387,17 +568,28 @@ uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
 	neey_ctrl.neey_dev_info.EquVol 			= p_rec_param_pkt->equ_voltage;
 
 	return HAL_OK;
-
 }
 
 
+//*****************************************************************************
+//
+//! Workerthread for neey-stuff
+//!
+//! \fn void process_NEEY(void)
+//!
+//! NOTE: is called on falling edge of drdx-Pin, when new adc-data are availabe
+//!
+//! \return neey_task_scheduler (0 for no pending tasks)
+//
+//*****************************************************************************
 uint8_t	process_NEEY(void)
 {
 	uint8_t init_buffer[10]={};
+	uint8_t alert_msg[4];
 
+	/* PROCESS_NEEY_DATA --------------------------------------------------------*/
 	if (neey_task_scheduler & PROCESS_NEEY_DATA)
 	{
-
 		if(check_data_pkt_NEEY((void*)RxBuf) == HAL_OK) {
 
 			//check if we need to send new neey data via can
@@ -416,9 +608,9 @@ uint8_t	process_NEEY(void)
 	}
 
 
+	/* PROCESS_NEEY_INFO --------------------------------------------------------*/
 	if (neey_task_scheduler & PROCESS_NEEY_INFO)
 	{
-
 		if(check_info_pkt_NEEY((void*)RxBuf) == HAL_OK) {
 
 			//what to do with new and valid neey-info data
@@ -434,9 +626,9 @@ uint8_t	process_NEEY(void)
 	}
 
 
+	/* PROCESS_NEEY_PARAM --------------------------------------------------------*/
 	if (neey_task_scheduler & PROCESS_NEEY_PARAM)
 	{
-
 		if(check_param_pkt_NEEY((void*)RxBuf) == HAL_OK) {
 
 			//what to do with new and valid neey-info data
@@ -451,5 +643,27 @@ uint8_t	process_NEEY(void)
 		neey_task_scheduler &= ~PROCESS_NEEY_PARAM;
 	}
 
+	/* PROCESS_NEEY_PARAM --------------------------------------------------------*/
+	if (neey_task_scheduler & PROCESS_NEEY_ALIVE)
+	{
+		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_NEEY_DATA)){
+
+			if(neey_ctrl.data_pkt_counter || neey_ctrl.last_checked_data_pkt_counter) {
+
+				if (neey_ctrl.data_pkt_counter == neey_ctrl.last_checked_data_pkt_counter) {
+					//critical
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_NEEY_DATA)){
+						alert_msg[0]=STATE_ERR_NEEY_DATA;
+						DoAlert(alert_msg,1);
+					}
+				}else {
+					neey_ctrl.last_checked_data_pkt_counter = neey_ctrl.data_pkt_counter;
+				}
+			}
+		}
+		neey_task_scheduler &= ~PROCESS_NEEY_ALIVE;
+	}
+
 	return neey_task_scheduler;
 }
+

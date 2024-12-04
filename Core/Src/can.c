@@ -28,7 +28,7 @@
 
 extern const _DEV_CONFIG_REGS* pDevConfig;
 
-CAN_TxHeaderTypeDef	TxHeader, ReplayHeader, TripHeader, AllertHeader;
+CAN_TxHeaderTypeDef	TxHeader, ReplayHeader, TripHeader, AllertHeader, BroadcastHeader;
 uint8_t				CanTxData[8];
 uint32_t            TxMailbox;
 uint8_t				can_task_scheduler;
@@ -80,7 +80,8 @@ void MX_CAN_Init(void)
   main_regs.can_tx_data_id = (pDevConfig->dev_id<<4) + CANTX_SA;
   main_regs.can_tx_heartbeat_id = (pDevConfig->dev_id<<4) + CANTX_HA;
   main_regs.can_filterMask = RXFILTERMASK;
-  main_regs.can_filterID = (pDevConfig->dev_id<<4); // Only accept bootloader CAN message ID
+  main_regs.can_filterID = (pDevConfig->dev_id<<4); // Only accept  CAN message ID
+  main_regs.can_rx_brdc_cmd_id = (pDevConfig->can_broadcast_id<<4) + 0xF;
 
   TxHeader.DLC = 5;
   TxHeader.IDE = CAN_ID_STD;
@@ -94,13 +95,18 @@ void MX_CAN_Init(void)
 
   TripHeader.DLC = 3;
   TripHeader.IDE = CAN_ID_STD;
-  TripHeader.StdId = (BMS_MEASURE_BOARD + 1);
+  TripHeader.StdId = (pDevConfig->can_trip_id<<4) + CANRX_SA;
   TripHeader.RTR = CAN_RTR_DATA;
 
   AllertHeader.DLC = 2;
   AllertHeader.IDE = CAN_ID_STD;
   AllertHeader.StdId = main_regs.can_tx_data_id;
   AllertHeader.RTR = CAN_RTR_DATA;
+
+  BroadcastHeader.DLC = 1;
+  BroadcastHeader.IDE = CAN_ID_STD;
+  BroadcastHeader.StdId = (pDevConfig->can_broadcast_id<<4)+0xF;
+  BroadcastHeader.RTR = CAN_RTR_DATA;
 
 	/* config_can_filter ---------------------------------------------------------*/
 	/* Setup Can-Filter                                                           */
@@ -256,7 +262,8 @@ uint8_t prepare_BMS_BLKData()
 /* USER CODE BEGIN 1 */
 uint8_t	process_CAN(void)
 {
-	uint8_t sys_reg;
+	uint16_t sys_reg;
+	uint8_t len;
 	//int16_t temperature;
 
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_NEEY_DATA)
@@ -291,7 +298,7 @@ uint8_t	process_CAN(void)
 
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_CELL_DATA) {
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox)) {
-			TxHeader.DLC=8;
+			TxHeader.DLC=sizeof(_BMS_CELL_DATA);
 			memcpy(CanTxData, (uint8_t*)&bms_cell_data[current_cell_2_send],sizeof(_BMS_CELL_DATA));
 
 			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK) {
@@ -301,6 +308,7 @@ uint8_t	process_CAN(void)
 				if (++current_cell_2_send >= neey_ctrl.neey_dev_info.CellCount) {
 					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_CELL_DATA;
 				}
+				set_signal_led(BLUE_LED, LED_200MS_FLASH);
 			}
 		}
 		else {
@@ -332,10 +340,20 @@ uint8_t	process_CAN(void)
 				if (++current_blk_data_2_send>=3){
 					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_BLK_DATA;
 				}
+				set_signal_led(BLUE_LED, LED_200MS_FLASH);
 			}
 		}else {
 			return can_task_scheduler;
 		}
+	}
+
+
+	if (can_task_scheduler & PROCESS_CAN_ON_BRDC_MSG)
+	{
+		if (CanRxData[0] <= ALIVE_CMD) {
+			can_task_scheduler |= PROCESS_CAN_ON_MSG;
+		}
+		can_task_scheduler &= ~PROCESS_CAN_ON_BRDC_MSG;
 	}
 
 
@@ -367,13 +385,18 @@ uint8_t	process_CAN(void)
 
 		case SYS_READ_REG_CMD:
 			//printf("ADC_READ_REG_CMD\n");
-			sys_reg = CanRxData[1];
+			sys_reg = (CanRxData[1]<<7)+CanRxData[2];
+			len=CanRxData[3];
+
+			if(!len || len >7)
+				len=1;
 
 			if (sys_reg < sizeof(main_regs)) {
 				CanTxData[0] = REPLAY_DATA_CMD;
-				CanTxData[1] = sys_reg;
-				CanTxData[2] = *(((uint8_t *)&main_regs)+sys_reg);
-				ReplayHeader.DLC = 3;
+				//CanTxData[1] = sys_reg;
+				memcpy((uint8_t *)&CanTxData[1],(((uint8_t *)&main_regs)+sys_reg),len);
+				//CanTxData[2] = *(((uint8_t *)&main_regs)+sys_reg);
+				ReplayHeader.DLC = len+1;
 			}
 			else {
 				CanTxData[0] = REPLAY_AKC_NACK_CMD;
@@ -440,6 +463,29 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		case NEEY_GET_INFO_CMD:
+			//printf("ADC_READ_REG_CMD\n");
+			sys_reg = (CanRxData[1]<<7)+CanRxData[2];
+			len=CanRxData[3];
+
+			if(!len || len >7)
+				len=1;
+
+			if (sys_reg < sizeof(_NEEY_INFO)) {
+				CanTxData[0] = REPLAY_DATA_CMD;
+				//CanTxData[1] = sys_reg;
+				memcpy((uint8_t *)&CanTxData[1],(((uint8_t *)&neey_ctrl.neey_dev_info)+sys_reg),len);
+				//CanTxData[2] = *(((uint8_t *)&main_regs)+sys_reg);
+				ReplayHeader.DLC = len+1;
+			}
+			else {
+				CanTxData[0] = REPLAY_AKC_NACK_CMD;
+				CanTxData[1] = NACK;
+				ReplayHeader.DLC = 2;
+			}
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
 		case BMS_GET_CELL_DATA_CMD:
 			if (prepare_BMS_CellData()) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
@@ -474,6 +520,7 @@ uint8_t	process_CAN(void)
 				Error_Handler ();
 			}
 
+			set_signal_led(BLUE_LED, LED_200MS_FLASH);
 			can_task_scheduler &= ~PROCESS_CAN_SEND_REPLAY;
 		}
 	}
@@ -482,6 +529,9 @@ uint8_t	process_CAN(void)
 }
 
 
+/* HAL_CAN_RxFifo0MsgPendingCallback -----------------------------------------*/
+/* Interrupt callback to manage incomming can-messages                        */
+/*----------------------------------------------------------------------------*/
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, CanRxData) != HAL_OK)
@@ -492,6 +542,9 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	if ((RxHeader.StdId == main_regs.can_rx_cmd_id))
 	{
 		can_task_scheduler |= PROCESS_CAN_ON_MSG;
+    	main_task_scheduler |= PROCESS_CAN;
+	}else if (RxHeader.StdId == main_regs.can_rx_brdc_cmd_id) {
+		can_task_scheduler |= PROCESS_CAN_ON_BRDC_MSG;
     	main_task_scheduler |= PROCESS_CAN;
 	}
 }
@@ -523,6 +576,8 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *phcan){
 		HAL_CAN_DeactivateNotification(phcan,CAN_IT_TX_MAILBOX_EMPTY);
 		HAL_CAN_ActivateNotification(phcan,CAN_IT_TX_MAILBOX_EMPTY);
 		//HAL_CAN_AddTxMessage(phcan,&(CanTxList.SendMsgBuff.header),CanTxList.SendMsgBuff.Data,&transmitmailbox);
+
+		//todo: alarm/error-handling
 	}
 }
 
@@ -544,21 +599,40 @@ void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef* phcan){
 	CAN_TX_Cplt(phcan);
 }
 
+/* send_broadcast_msg ---------------------------------------------------------*/
+/*                                                                            */
+/*---------------------------------------------------------------------------*/
+void can_send_brdc_msg(uint8_t* p_msg, uint8_t len){
 
-/* send_confirm_msg ---------------------------------------------------------*/
-/* replay to can-massege                                                     */
-/*----------------------------------------------------------------------------*/
-void can_send_allert_msg(uint8_t allert_msg){
+	assert(len<8);
+	//CanTxData[0] = SYS_ALLERT_MSG;
+	memcpy(CanTxData, p_msg, len);
+	AllertHeader.DLC=len;
 
-	CanTxData[0] = SYS_ALLERT_MSG;
-	CanTxData[1] = allert_msg;	//0xFF = Success, 0x00 = failed
+	HAL_CAN_AddTxMessage(&hcan, &BroadcastHeader, CanTxData, &TxMailbox);
 
-	HAL_CAN_AddTxMessage(&hcan, &AllertHeader, CanTxData, &TxMailbox);
+	set_signal_led(BLUE_LED, LED_100MS_FLASH);
 }
 
 
-/* send_confirm_msg ---------------------------------------------------------*/
-/* replay to can-massege                                                     */
+/* send_allert_msg ---------------------------------------------------------*/
+/*                                                                           */
+/*----------------------------------------------------------------------------*/
+void can_send_allert_msg(uint8_t* p_allert_msg, uint8_t len){
+
+	assert(len<7);
+	CanTxData[0] = SYS_ALERT_MSG;
+	memcpy(CanTxData+1, p_allert_msg, len);
+	AllertHeader.DLC=len+1;
+
+	HAL_CAN_AddTxMessage(&hcan, &AllertHeader, CanTxData, &TxMailbox);
+
+	set_signal_led(BLUE_LED, LED_100MS_FLASH);
+}
+
+
+/* send_trip_msg ---------------------------------------------------------*/
+/*                                                                          */
 /*----------------------------------------------------------------------------*/
 void can_send_trip_msg(void){
 
@@ -567,6 +641,8 @@ void can_send_trip_msg(void){
 	CanTxData[1] = GPIO_PIN_SET;
 
 	HAL_CAN_AddTxMessage(&hcan, &TripHeader, CanTxData, &TxMailbox);
+
+	set_signal_led(BLUE_LED, LED_100MS_FLASH);
 }
 
 

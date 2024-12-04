@@ -35,6 +35,16 @@
 #include "OneWire.h"
 #include "neey.h"
 #include "passive_balancer.h"
+
+#if __has_include("gitcommit.h")
+	#include "gitcommit.h"
+#else
+	#define __GIT_SHORT_HASH__ 0x0000000
+	#define __GIT_BRANCH__ "none"
+	#define __GIT_DATE_STR__ "2024-11-25"
+	#define __GIT_DATE_UT__ 1732571756
+#endif
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,29 +71,43 @@ uint8_t alive_timer;
 uint16_t timer_10ms;
 
 
-#define __DEBUG__
+//#define __DEBUG__
 
 #ifdef __DEBUG__
+////alles was persistend (im Flash) gespeichert werden soll, z.b. Kalibration, ...
 __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_regs = {
 	__DEV_ID__,
 	__BOARD_TYPE__,
-	"BMS-BLK",
+	__BOARD_NAME__,
 	__BOARD_VERSION__,
 	__BOARD_MF_DATE__,
 	DEAULT_BL_CAN_BITRATE,
-	DEAULT_APP_CAN_BITRATE
+	DEAULT_APP_CAN_BITRATE,
+	DEAULT_TRIPP_CAN_ID,
+	DEAULT_BROADCAST_CAN_ID
 };
 #endif
 
 
-__attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] = "BMS-BLK";
+////Boardinfoname , ...
+__attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] = __BOARD_NAME__;
 
+////Softwareinfo, ...
 __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
 	__SW_NAME__,
+#ifdef __DEBUG__
+	"Debug",
+#else
+	"Release",
+#endif
 	__SW_RELEASE__,
 	__SW_RELEASE_DATE__,
-	0x3cd7450ab698ad24,
-	"no tag"
+	{	//git-info aus gitcommit.h
+		__GIT_SHORT_HASH__,
+		__GIT_DATE_UT__,
+		__GIT_DATE_STR__,
+		__GIT_BRANCH__,
+	}
 };
 
 
@@ -108,6 +132,20 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
 	},
+	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
+	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
+
+	((0<<REG_ALERT_HEAT_SINK_TEMP) | (0<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
+	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
+
+	{
+			{2500,3650,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_voltage 1/1000 Volt
+			{100,400,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_resistance mOhm
+			{50,450,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_temperature 1/10 °C
+			{5500,7900,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //blk_voltage 1/100 Volt
+			{0,200,(ENABLE_MAX_THRESHOLD)}, //blk_voltage_div 1/1000 Volt
+			{50,500,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //heatsink_temperature 1/10 °C
+	}
 };
 
 
@@ -123,13 +161,15 @@ const _DEV_CONFIG_REGS* pDevConfig = (const _DEV_CONFIG_REGS*)DEV_CONFIG_FL_ADDR
  */
 _MAIN_REGS main_regs = {
 	//!<RW CTRL Ein-/Ausschalten usw.  (1 BYTE )
-	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALLERT)),
+	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALERT) | (1<<REG_CTRL_ENABLE_PB) | (0<<REG_CTRL_ENABLE_OW) | (1<<REG_CTRL_ENABLE_NEEY)),
 
 	SYS_OK,
+	ERR_NONE,
 	STATE_OFF,
 
 	ALIVE_TIMEOUT_10MS,
 
+	0,
 	0,
 	0,
 	0,
@@ -146,8 +186,8 @@ _MAIN_REGS main_regs = {
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 uint8_t process_10Ms_Timer(void);
-void 	AllertHandler(void);
-uint8_t check_AllertThrescholds(void);
+void 	AlertHandler(void);
+uint8_t check_AlertThresholds(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -162,141 +202,221 @@ int _write(int file, char *ptr, int len)
 	 return len;
  }
 
+_LED_SIGNAL_STATE	led_state={1,SLOW_FLASH,OFF,OFF};
+
+/****************************************************************************
+  * @brief  The application entry point.
+  * @retval int
+  */
+void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
+{
+	if(led & GREEN_LED)
+		led_state.green_led_mask=mask;
+
+	if(led & RED_LED)
+		led_state.red_led_mask=mask;
+
+	if(led & BLUE_LED) {
+		led_state.blue_led_mask=mask;
+		led_state.mask=1;
+	}
+
+	return;
+}
+
+
+/****************************************************************************
+  * @brief  The application entry point.
+  * @retval int
+  */
+void signal_led_task(void)
+{
+
+	if(led_state.green_led_mask & led_state.mask) {
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+	}else {
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+	}
+
+	if(led_state.red_led_mask & led_state.mask) {
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+	}else {
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+	}
+
+	if(led_state.blue_led_mask & led_state.mask) {
+		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
+		led_state.blue_led_mask &= + ~led_state.mask;
+	}else {
+		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
+	}
+
+	led_state.mask<<=1;
+	if (!led_state.mask) {
+		led_state.mask=1;
+	}
+}
+
+
 /* USER CODE END 0 */
 
-/**
+/****************************************************************************
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
+/* USER CODE BEGIN 1 */
+	uint8_t second_counter=1;
 	main_task_scheduler = 0;
-	//adc_enable_mask =
-	//adc_enable_mask = (0x01<<ADC_CH5);
 	alive_timer = 0;
 	timer_10ms = 0;
-	uint8_t timer_100ms = 0;
 
 	memcpy(&main_regs.cfg_regs, &app_cfg_regs, sizeof(_BMS_BLK_CONFIG_REGS));
 
-  /* USER CODE END 1 */
+/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_CAN_Init();
-  MX_RTC_Init();
-  MX_SPI1_Init();
-  MX_USART1_UART_Init();
-  MX_USART2_UART_Init();
-  MX_CRC_Init();
-  MX_USART3_UART_Init();
-  MX_TIM4_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_CAN_Init();
+	MX_RTC_Init();
+	MX_SPI1_Init();
+	MX_USART1_UART_Init();
+	MX_USART2_UART_Init();
+	MX_CRC_Init();
+	MX_USART3_UART_Init();
+	MX_TIM4_Init();
+
+/* USER CODE BEGIN 2 */
 
 
-  HAL_CAN_Start(&hcan);
+	HAL_CAN_Start(&hcan);
 
-  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-  {
-	  Error_Handler();
-  }
+	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) {
+		Error_Handler();
+	}
 
-  //
-//  PBalancer_init();
+	//
+	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_PB)) {
+		PBalancer_init();
+	}
 
-  //start one-wire temperature sensors
-  get_ROMid();
+	//start one-wire temperature sensors
+	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
+		get_ROMid();
+	}
 
-  // Start our 10ms timer
-  HAL_TIM_Base_Start_IT(&htim4);
+	// Start our 10ms timer
+	HAL_TIM_Base_Start_IT(&htim4);
 
-  //start all neey releated stuff
-  MX_NEEY_Init();
+	//start all neey releated stuff
+	MX_NEEY_Init();
 
-  /* USER CODE END 2 */
+/* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
+/* USER CODE BEGIN WHILE */
+	while (1) {
+/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+/* USER CODE BEGIN 3 */
 
-	  if (main_task_scheduler & PROCESS_NEEY)
-	  {
-		  if (!process_NEEY())
-		  {
+	  /* PROCESS_NEEY  ------------------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_NEEY) {
+		  if (!process_NEEY()){
 			  //check_AllertThrescholds();
 			  main_task_scheduler &= ~PROCESS_NEEY;
 		  }
 	  }
 
 
-	  if (main_task_scheduler & PROCESS_PBALANCER)
-	  {
-		  if (!process_PBalancer())
-		  {
-			  //check_AllertThrescholds();
+	  /* PROCESS_PBALANCER  --------------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_PBALANCER) {
+		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_PB)){
+
+			  if (!process_PBalancer()){
+				  //check_AllertThrescholds();
+				  main_task_scheduler &= ~PROCESS_PBALANCER;
+			  }
+		  }else {
 			  main_task_scheduler &= ~PROCESS_PBALANCER;
 		  }
 	  }
 
 
-	  if (main_task_scheduler & PROCESS_OW)
-	  {
-		  if (!process_OW())
-		  {
-			  //
+	  /* PROCESS_OW  ------------------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_OW) {
+		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)){
+			  if (!process_OW()){
+				  //
+				  main_task_scheduler &= ~PROCESS_OW;
+			  }
+		  }else {
 			  main_task_scheduler &= ~PROCESS_OW;
 		  }
 	  }
 
-
-	  if (main_task_scheduler & PROCESS_CAN)
-	  {
-		  if (!process_CAN())
+	  /* PROCESS_CAN  -----------------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_CAN) {
+		  if (!process_CAN()){
 			  main_task_scheduler &= ~PROCESS_CAN;
+		  }
 	  }
 
 
-	  if (main_task_scheduler & PROCESS_10_MS_TASK)
-	  {
-		  if (!process_10Ms_Timer())
+	  /* PROCESS_10_MS_TASK ------------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_10_MS_TASK) {
+		  if (!process_10Ms_Timer()){
 			  main_task_scheduler &= ~PROCESS_10_MS_TASK;
+		  }
 	  }
 
 
-	  if (main_task_scheduler & PROCESS_100_MS_TASK)
-	  {
+	  /* PROCESS_100_MS_TASK  -----------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_100_MS_TASK) {
 		  main_task_scheduler &= ~PROCESS_100_MS_TASK;
 
-		  if ( !(++timer_100ms % 10))
-			  get_Temperature();
+		  signal_led_task();
+	  }
 
-		  HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
+	  /* PROCESS_1000_MS_TASK  ----------------------------------------------------*/
+	  if (main_task_scheduler & PROCESS_1000_MS_TASK) {
+		  main_task_scheduler &= ~PROCESS_1000_MS_TASK;
+
+		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
+			  get_Temperature();
+		  }
+
+		  if (!(second_counter%2)) {
+			  if(main_regs.ctrl & (1<<REG_CTRL_ENABLE_NEEY)) {
+				  neey_task_scheduler |= PROCESS_NEEY_ALIVE;
+				  main_task_scheduler |= PROCESS_NEEY;
+			  }
+		  }
+		second_counter++;
+
+		  //HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
 	  }
 
   }
-  /* USER CODE END 3 */
+/* USER CODE END 3 */
 }
 
 /**
@@ -360,9 +480,8 @@ void SystemClock_Config(void)
 //! \return None.
 //
 //*****************************************************************************
-uint8_t check_AllertThrescholds(void)
+uint8_t check_AlertThresholds(void)
 {
-
 
 	return 0;
 }
@@ -386,16 +505,25 @@ uint8_t process_10Ms_Timer(void)
 		{
 			//kritisch
 			alive_timer = main_regs.alive_timeout;
+			uint8_t alert_msg;
+			alert_msg = ERR_ALIVE;
+			DoAlert(&alert_msg, 1);
 		}
 	}
 
 	//HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_TOGLE);
 	//HAL_GPIO_TogglePin(FAN_SPEED_GPIO_Port,FAN_SPEED_Pin);
-	process_PBalancer();
+	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_PB))
+		process_PBalancer();
 
-	if (!(++timer_10ms % 10))
+	if (!(timer_10ms % 10))
 	{
 		main_task_scheduler |= PROCESS_100_MS_TASK;
+	}
+
+	if (!(++timer_10ms % 100))
+	{
+		main_task_scheduler |= PROCESS_1000_MS_TASK;
 	}
 
 	return 0;
@@ -412,17 +540,49 @@ uint8_t process_10Ms_Timer(void)
 //! \return None.
 //
 //*****************************************************************************
-void AllertHandler(void)
+void AlertHandler(void)
 {
 	//send Something?
 
 	if (main_regs.ctrl & (1<<REG_CTRL_ACTIVATE))
 	{
 		//HAL_GPIO_WritePin(RELAY_2_GPIO_Port, RELAY_2_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 
-		while(1){}
+		Error_Handler();
 	}
 }
+
+
+//*****************************************************************************
+//
+//! wird im Fehlerfall aufgerufen und aktivert die vollständige Abschaltung
+//!
+//! \fn void DoAlert(void)
+//!
+//!
+//! \return None.
+//
+//*****************************************************************************
+void DoAlert(uint8_t* p_msg, uint8_t len)
+{
+	//send Something?
+	can_send_allert_msg(p_msg, len);
+
+	if (main_regs.ctrl & (1<<REG_CTRL_CRIT_ALERT))
+	{
+		can_send_trip_msg();
+
+		AlertHandler();
+	}
+
+	main_regs.sys_err=(_SYS_ERR_CODES)p_msg[0];
+	main_regs.sys_state=SYS_ERROR;
+
+}
+
 
 
 //*****************************************************************************

@@ -145,14 +145,14 @@ typedef struct
 	char			NeeyDevType[16];
 	char			NeeyVersions[24];					/*!< string mit versionsnummern HW...,ZH....,V....  */
 	char			NeeyMFD[12];						/*!< string mit dem Manufacturing Date YYYYMMDD  */
-	uint8_t			CellCount;
 	float			StartVol;
 	float			MaxBalCurrent;
 	float			SleepVol;
+	float			EquVol;
+	uint8_t			CellCount;
 	uint8_t			Buzzer;
 	uint8_t			BatType;
 	uint16_t		BatCap;
-	float			EquVol;
 } _NEEY_INFO;
 
 
@@ -190,6 +190,7 @@ typedef struct
 	_NEEY_DEV_DATA			neey_dev_data;
 	_NEEY_STATE				neey_state;
 	uint8_t					data_pkt_counter;
+	uint8_t					last_checked_data_pkt_counter;
 	uint8_t					data_lock;
 } _NEEY_CTRL;
 
@@ -402,6 +403,8 @@ void MX_NEEY_Init(void);
 uint8_t	process_NEEY(void);
 
 uint8_t Send_Param_to_neey(uint8_t sub_type, uint8_t* p_data, uint8_t len);
+
+extern uint8_t		neey_task_scheduler;
 
 
 #ifdef __cplusplus
