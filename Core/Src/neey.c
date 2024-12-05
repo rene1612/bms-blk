@@ -557,8 +557,11 @@ uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
 	if(p_rec_param_pkt->Checksum != cs || p_rec_param_pkt->PacketEnd != NEEY_PACKET_END)
 		return HAL_ERROR;
 
-
+#ifdef __DEBUG__
+	neey_ctrl.neey_dev_info.CellCount 		= 1;
+#else
 	neey_ctrl.neey_dev_info.CellCount 		= p_rec_param_pkt->cell_count;
+#endif
 	neey_ctrl.neey_dev_info.StartVol 		= p_rec_param_pkt->start_voltage;
 	neey_ctrl.neey_dev_info.MaxBalCurrent 	= p_rec_param_pkt->max_balance_current;
 	neey_ctrl.neey_dev_info.SleepVol 		= p_rec_param_pkt->sleep_voltage;

@@ -132,12 +132,19 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
 	},
+#ifdef __DEBUG__
+	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
+	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
+
+	((0<<REG_ALERT_HEAT_SINK_TEMP) | (0<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
+	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
+#else
 	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
 	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
 
 	((0<<REG_ALERT_HEAT_SINK_TEMP) | (0<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
 	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
-
+#endif
 	{
 			{2500,3650,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_voltage 1/1000 Volt
 			{100,400,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_resistance mOhm
@@ -568,8 +575,6 @@ void AlertHandler(void)
 //*****************************************************************************
 void DoAlert(uint8_t* p_msg, uint8_t len)
 {
-	//send Something?
-	can_send_allert_msg(p_msg, len);
 
 	if (main_regs.ctrl & (1<<REG_CTRL_CRIT_ALERT))
 	{
@@ -577,6 +582,10 @@ void DoAlert(uint8_t* p_msg, uint8_t len)
 
 		AlertHandler();
 	}
+
+	//send Something?
+	can_send_allert_msg(p_msg, len);
+
 
 	main_regs.sys_err=(_SYS_ERR_CODES)p_msg[0];
 	main_regs.sys_state=SYS_ERROR;

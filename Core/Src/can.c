@@ -638,7 +638,7 @@ void can_send_trip_msg(void){
 
 	CanTxData[0] = SET_RELAY_CMD;
 	CanTxData[1] = 01;
-	CanTxData[1] = GPIO_PIN_SET;
+	CanTxData[2] = GPIO_PIN_SET;
 
 	HAL_CAN_AddTxMessage(&hcan, &TripHeader, CanTxData, &TxMailbox);
 
