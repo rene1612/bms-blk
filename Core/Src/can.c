@@ -26,6 +26,12 @@
 #include "neey.h"
 #include "passive_balancer.h"
 
+#include "dallas_temperature.h"
+
+#ifdef __WS2812B__
+#include "ws2812b.h"
+#endif
+
 extern const _DEV_CONFIG_REGS* pDevConfig;
 
 CAN_TxHeaderTypeDef	TxHeader, ReplayHeader, TripHeader, AllertHeader, BroadcastHeader;
@@ -54,11 +60,9 @@ void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 0 */
 
-
-  hcan.Instance = CAN1;
   /* USER CODE BEGIN CAN_Init 1 */
   hcan.Init.Prescaler = pDevConfig->app_can_bitrate;
-  /* USER CODE END CAN_Init 1 */
+  hcan.Instance = CAN1;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_2TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_5TQ;
@@ -69,6 +73,7 @@ void MX_CAN_Init(void)
   hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
+  /* USER CODE END CAN_Init 1 */
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
@@ -202,6 +207,7 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
   }
 }
 
+/* USER CODE BEGIN 1 */
 
 uint8_t prepare_BMS_CellData()
 {
@@ -218,7 +224,8 @@ uint8_t prepare_BMS_CellData()
 		bms_cell_data[cell_counter].flags_ch_number = (uint8_t)(cell_counter | (neey_ctrl.cell_data[cell_counter].flag << 5));
 		bms_cell_data[cell_counter].cell_voltage = neey_ctrl.cell_data[cell_counter].voltage;
 		bms_cell_data[cell_counter].cell_resistance = neey_ctrl.cell_data[cell_counter].resistance;
-		bms_cell_data[cell_counter].cell_temperature = Temp[cell_counter];
+		//		bms_cell_data[cell_counter].cell_temperature = Temp[cell_counter];
+		bms_cell_data[cell_counter].cell_temperature = (int16_t)(temperatures[cell_counter]*100);
 		//bms_cell_data[cell_counter].cell_flags = neey_ctrl.cell_data[cell_counter].flag;
 	}
 
@@ -259,43 +266,33 @@ uint8_t prepare_BMS_BLKData()
 }
 
 
-/* USER CODE BEGIN 1 */
 uint8_t	process_CAN(void)
 {
-	uint16_t sys_reg;
 	uint8_t len;
 	//int16_t temperature;
+	uint16_t sys_reg, max_sys_reg_size;
+	uint8_t* p_sys_reg_offset;
 
+
+	/* PROCESS_CAN_SEND_NEW_NEEY_DATA --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_NEEY_DATA)
 	{
-/*
-		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))
-		{
+		if (main_regs.cfg_regs.neey_cfg_data.auto_run) {
 
-//			CanTxData[0] = 0x00;
-//			CanTxData[1] = (uint8_t)neey_ctrl.cell_data[0].voltage;
-//			CanTxData[2] = (uint8_t)(neey_ctrl.cell_data[0].voltage>>8);
-//			CanTxData[3] = (uint8_t)neey_ctrl.cell_data[0].resistance;
-//			CanTxData[4] = (uint8_t)(neey_ctrl.cell_data[0].resistance>>8);
-//			//temperature = (int16_t)(Temp[0]*100);
-//			CanTxData[5] = (uint8_t)Temp[0];
-//			CanTxData[6] = (uint8_t)(Temp[0]>>8);
-
-			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK)
-			{
-				Error_Handler ();
+			if (prepare_BMS_CellData()) {
+				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
 			}
+
+			if (prepare_BMS_BLKData()) {
+				can_task_scheduler |= PROCESS_CAN_SEND_NEW_BLK_DATA;
+			}
+
 		}
-		else
-			return can_task_scheduler;
-*/
 
 		can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_NEEY_DATA;
-
-		//can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_ADC_DATA;
-		//return can_task_scheduler;
 	}
 
+	/* PROCESS_CAN_SEND_NEW_CELL_DATA --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_CELL_DATA) {
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox)) {
 			TxHeader.DLC=sizeof(_BMS_CELL_DATA);
@@ -316,7 +313,7 @@ uint8_t	process_CAN(void)
 		}
 	}
 
-
+	/* PROCESS_CAN_SEND_NEW_BLK_DATA --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_BLK_DATA) {
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox)) {
 
@@ -347,7 +344,7 @@ uint8_t	process_CAN(void)
 		}
 	}
 
-
+	/* PROCESS_CAN_ON_BRDC_MSG --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_ON_BRDC_MSG)
 	{
 		if (CanRxData[0] <= ALIVE_CMD) {
@@ -357,24 +354,29 @@ uint8_t	process_CAN(void)
 	}
 
 
+	/* PROCESS_CAN_ON_MSG --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_ON_MSG)
 	{
 		switch (CanRxData[0])
 		{
+		/*****************************************************/
 		case ALIVE_CMD:
 			alive_timer = main_regs.alive_timeout;
 			break;
 
+		/*****************************************************/
 		case SYS_RESET_CMD:
 			//printf("SYS_RESET\n");
 			HAL_NVIC_SystemReset();
 			break;
 
+		/*****************************************************/
 		case SYS_APP_RESET_CMD:
 			//printf("APP_RESET\n");
 			JumpToApp();
 			break;
 
+		/*****************************************************/
 		case SYS_BOOT_CMD:
 			//printf("SYS_BOOT\n");
 			//leave a message in a bottle for the bootloader,
@@ -383,18 +385,46 @@ uint8_t	process_CAN(void)
 			JumpToBtld();
 			break;
 
+		/*****************************************************/
 		case SYS_READ_REG_CMD:
 			//printf("ADC_READ_REG_CMD\n");
-			sys_reg = (CanRxData[1]<<7)+CanRxData[2];
-			len=CanRxData[3];
+			sys_reg = (CanRxData[2]<<7)+CanRxData[3];
+
+			len=CanRxData[4];
 
 			if(!len || len >7)
 				len=1;
 
-			if (sys_reg < sizeof(main_regs)) {
+			switch(CanRxData[1]) {
+				case GET_SW_INFO_REGS:
+					p_sys_reg_offset=(uint8_t *)&main_regs.sw_info;
+					max_sys_reg_size=sizeof(_SW_INFO_REGS);
+					break;
+
+				case GET_DEV_CFG_REGS:
+					p_sys_reg_offset=(uint8_t *)&main_regs.dev_config;
+					max_sys_reg_size=sizeof(_DEV_CONFIG_REGS);
+					break;
+
+				case GET_BRD_INFO_REGS:
+					p_sys_reg_offset=(uint8_t *)&main_regs.board_info;
+					max_sys_reg_size=sizeof(_BOARD_INFO_STRUCT);
+					break;
+
+				case GET_MAIN_REGS:
+				default:
+					p_sys_reg_offset=(uint8_t *)&main_regs;
+					max_sys_reg_size=sizeof(_MAIN_REGS)-sizeof(_SW_INFO_REGS)-sizeof(_DEV_CONFIG_REGS)-sizeof(_BOARD_INFO_STRUCT);
+					break;
+			}
+
+			if ((sys_reg + 1) < max_sys_reg_size) {
+				if ((sys_reg + len) >= max_sys_reg_size) {
+					len = max_sys_reg_size - sys_reg;
+				}
 				CanTxData[0] = REPLAY_DATA_CMD;
 				//CanTxData[1] = sys_reg;
-				memcpy((uint8_t *)&CanTxData[1],(((uint8_t *)&main_regs)+sys_reg),len);
+				memcpy((uint8_t *)&CanTxData[1],(p_sys_reg_offset+sys_reg),len);
 				//CanTxData[2] = *(((uint8_t *)&main_regs)+sys_reg);
 				ReplayHeader.DLC = len+1;
 			}
@@ -403,9 +433,11 @@ uint8_t	process_CAN(void)
 				CanTxData[1] = NACK;
 				ReplayHeader.DLC = 2;
 			}
+
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		/*****************************************************/
 		case SYS_WRITE_REG_CMD:
 			//printf("WRITE_REG_CMD\n");
 			sys_reg = CanRxData[1];
@@ -422,6 +454,7 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		/*****************************************************/
 		case PB_SET_CMD:
 			//printf("WRITE_REG_CMD\n");
 			uint8_t channal = CanRxData[1];
@@ -434,6 +467,7 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		/*****************************************************/
 		case PB_SET_OE_CMD:
 			//printf("WRITE_REG_CMD\n");
 
@@ -448,6 +482,7 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		/*****************************************************/
 		case NEEY_SET_CMD:
 			//printf("WRITE_REG_CMD\n");
 
@@ -463,6 +498,7 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+		/*****************************************************/
 		case NEEY_GET_INFO_CMD:
 			//printf("ADC_READ_REG_CMD\n");
 			sys_reg = (CanRxData[1]<<7)+CanRxData[2];
@@ -486,6 +522,37 @@ uint8_t	process_CAN(void)
 			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
 			break;
 
+#ifdef __WS2812B__
+		/*****************************************************/
+		case WS2815_SET_CMD:
+			//printf("WRITE_REG_CMD\n");
+			setLedValues(CanRxData[1], CanRxData[2], CanRxData[3], CanRxData[4]);
+			//setLedValues(uint16_t led, uint8_t r, uint8_t g, uint8_t b);
+
+			CanTxData[1] = ACK;
+
+			ReplayHeader.DLC = 2;
+			CanTxData[0] = REPLAY_AKC_NACK_CMD;
+			can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+			break;
+
+			/*****************************************************/
+			case WS2815_ENABLE_CMD:
+				//printf("WRITE_REG_CMD\n");
+				if (enableWS2812b_Leds(CanRxData[1])==HAL_OK) {
+					CanTxData[1] = ACK;
+				}else {
+					CanTxData[1] = NACK;
+				}
+
+				ReplayHeader.DLC = 2;
+				CanTxData[0] = REPLAY_AKC_NACK_CMD;
+				can_task_scheduler |= PROCESS_CAN_SEND_REPLAY;
+				break;
+
+
+#endif
+		/*****************************************************/
 		case BMS_GET_CELL_DATA_CMD:
 			if (prepare_BMS_CellData()) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
@@ -495,6 +562,7 @@ uint8_t	process_CAN(void)
 			}
 			break;
 
+		/*****************************************************/
 		case BMS_GET_BLK_DATA_CMD:
 			if (prepare_BMS_BLKData()) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_BLK_DATA;
@@ -504,6 +572,7 @@ uint8_t	process_CAN(void)
 			}
 			break;
 
+		/*****************************************************/
 		default:
 			break;
 		}
@@ -511,6 +580,7 @@ uint8_t	process_CAN(void)
 	}
 
 
+	/* PROCESS_CAN_SEND_REPLAY --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_REPLAY)
 	{
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox))

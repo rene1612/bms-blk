@@ -13,6 +13,9 @@
  */
 
 #include "main.h"
+
+#ifdef __OW_ONEWIRE_OLD__
+
 #include "OneWire.h"
 #include "stm32f1xx_hal.h"
 #include "stdio.h"
@@ -20,28 +23,26 @@
 #include "gpio.h"
 
 
-
 extern UART_HandleTypeDef huart3;
 #define ow_uart huart3
 #define OW_USART USART3
-
 #define MAXDEVICES_ON_THE_BUS 23
 
 /*****************************************************************************/
 //volatile uint8_t recvFlag;
 //volatile uint16_t rc_buffer[5];
 
-int16_t Temp[MAXDEVICES_ON_THE_BUS];
-uint8_t devices;
-OneWire ow;
-uint32_t pDelay = 300, i;
-uint8_t sensor;
-DEVInfo devInfo;
+int16_t 	Temp[MAXDEVICES_ON_THE_BUS];
+uint8_t 	devices;
+OneWire 	ow;
+uint32_t 	pDelay = 300, i;
+uint8_t 	sensor;
+DEVInfo 	devInfo;
 Temperature t;
-char *crcOK;
-uint8_t ow_task_scheduler;
+char*		crcOK;
 
-uint8_t current_temp_device;
+uint8_t 	ow_task_scheduler;
+uint8_t 	current_temp_device;
 
 
 
@@ -53,8 +54,8 @@ uint8_t current_temp_device;
  */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if (huart->Instance == OW_USART){
-		ow.txFlag &= ~(1 << 0);//сбрасываем флаг ответ получен после
+	if (huart->Instance == OW_USART) {
+		ow.txFlag &= ~(1 << 0);					//сбрасываем флаг ответ получен после
 		main_task_scheduler |= PROCESS_OW;
 		ow_task_scheduler |= OW_PROCESS_TX_CPLT;
 	}
@@ -89,7 +90,6 @@ void USART_SendData(UART_HandleTypeDef *huart, uint8_t* pData, uint8_t len)
 	//USARTx->DR = (Data & (uint16_t)0x01FF);
 
 	ow.txFlag |= (1 << 0);//сбрасываем флаг ответ получен после
-
 }
 
 
@@ -120,7 +120,7 @@ void usart_setup(uint32_t baud) {
 }
 
 
-/****************************************************************************
+/**********************************************************************************************
  * owInit
  *
  * @param ow
@@ -138,18 +138,18 @@ void owInit(OneWire *ow) {
 	}
 
 	k=0;
-	for (; k < 8; k++)
+	for (; k < 8; k++) {
 		ow->lastROM[k] = 0x00;
+	}
 
 	ow->lastDiscrepancy = 64;
-
 	ow->state = ow_state_none;
 	ow_task_scheduler = OW_NO_TASK;
 	current_temp_device = 0;
 }
 
 
-/****************************************************************************
+/***********************************************************************************************
  * owReadHandler
  *
  * @param void
@@ -177,7 +177,7 @@ void owReadHandler() { //обработчик прерыания USART
 }
 
 
-/****************************************************************************
+/**********************************************************************************************
  * owSend
  *
  * @param data Data to send
@@ -189,14 +189,14 @@ void owSend(uint8_t data) {
 	ow.tx_buffer[0] = data;
 	USART_SendData(&ow_uart, ow.tx_buffer, 1);//отправляем данные
 
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+	//HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
 //	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//wait for tx to complete
 	while(ow.txFlag & (1 << 0));//wait for tx to complete
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
+	//HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
 
-/****************************************************************************
+/**********************************************************************************************
  * owEchoRead
  *
  * @param void
@@ -231,7 +231,7 @@ uint8_t owResetCmd() {
 }
 
 
-/****************************************************************************
+/*******************************************************************************************
  * owReadSlot
  *
  * @param void
@@ -242,7 +242,7 @@ uint8_t owReadSlot(uint8_t data) {//читаем у нас пришла един
 }
 
 
-/****************************************************************************
+/*******************************************************************************************
  * byteToBits
  *
  * @param void
@@ -268,7 +268,7 @@ uint8_t *byteToBits(uint8_t ow_byte, uint8_t *bits) {//разлагаем 1 ба
 }
 
 
-/**
+/*******************************************************************************************
  * Метод пересылает последовательно 8 байт по одному на каждый бит в data
  * @param usart -- выбранный для эмуляции 1wire UART
  * @param d -- данные
@@ -281,7 +281,7 @@ void owSendByte(uint8_t d) {
 }
 
 
-/****************************************************************************
+/********************************************************************************************
  * bitsToByte
  *
  * @param void
@@ -307,7 +307,7 @@ uint8_t bitsToByte(uint8_t *bits) {//принимает "кодированый"
 
 
 /* Подсчет CRC8 массива mas длиной Len */
-/****************************************************************************
+/**************************************************************************************************
  * owCRC
  *
  * @param void
@@ -349,7 +349,7 @@ uint8_t owCRC8(RomCode *rom){
 }
 
 
-/*
+/*********************************************************************************************
  * return 1 if has got one more address
  * return 0 if hasn't
  * return -1 if error reading happened
@@ -366,9 +366,10 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
 	}
 
 	owSendByte(ONEWIRE_SEARCH);//
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+
+//	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
 	while(ow->txFlag & (1 << 0));//lets busy wait here
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
+//	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 
 	do {
 		uint8_t answerBit = 0;
@@ -425,7 +426,7 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
 
 
 
-/**
+/*******************************************************************************************************
  * Method for Возвращает количество устройств на шине или код ошибки, если значение меньше 0
  * @param ow -- OneWire pointer
  * @return data
@@ -456,14 +457,16 @@ void owSkipRomCmd(OneWire *ow) {//отправляет команду пропу
 
 	owSendByte(ONEWIRE_SKIP_ROM);
 
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+//	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_SET);
+
 //	while(__HAL_UART_GET_FLAG(&ow_uart, UART_FLAG_TC) == RESET);//wait for tx to complete
 	while(ow->txFlag & (1 << 0));//wait for tx to complete
-	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
+
+//	HAL_GPIO_WritePin(FAN_SPEED_GPIO_Port, FAN_SPEED_Pin, GPIO_PIN_RESET);
 }
 
 
-/**
+/**********************************************************************************************************
  * Method for
  * @param rom -- selected device on the bus
  * @param cmd -- command to operate
@@ -509,7 +512,7 @@ void owConvertTemperatureCmd(OneWire *ow, RomCode *rom) {
 }
 
 
-/**
+/************************************************************************************************
  * Method for reading scratchad DS18B20 OR DS18S20
  * If sensor DS18B20 then data MUST be at least 9 byte
  * If sensor DS18S20 then data MUST be at least 2 byte
@@ -558,7 +561,7 @@ uint8_t *owReadScratchpadCmd(OneWire *ow, RomCode *rom, uint8_t *data) {//чит
 }
 
 
-/**
+/*************************************************************************************************
  * Method for writing scratchad DS18B20 OR DS18S20
  * @param ow -- OneWire pointer
  * @param rom -- selected device on the bus
@@ -585,7 +588,7 @@ void owWriteDS18B20Scratchpad(OneWire *ow, RomCode *rom, uint8_t th, uint8_t tl,
 }
 
 
-/**
+/*******************************************************************************************************
  * Get last mesaured temperature from DS18B20 or DS18S20. These temperature MUST be measured in previous
  * opearions. If you want to measure new value you can set reSense in true. In this case next invocation
  * that method will return value calculated in that step.
@@ -650,7 +653,7 @@ void owRecallE2Cmd(OneWire *ow, RomCode *rom) {
 
 
 
-/****************************************************************************
+/**************************************************************************************
  * get_ROMid
  *
  * @param void
@@ -727,7 +730,6 @@ void read_Temperatures_OW (void)
  */
 uint8_t process_OW(void) {
 
-
 	/***********************************************************************/
 	if (ow_task_scheduler & OW_PROCESS_RX_CPLT)
 	{
@@ -735,6 +737,7 @@ uint8_t process_OW(void) {
 		case ow_reset:
 			ow.state = ow_state_none;
 			break;
+
 		case ow_read_scratchpad:
 			break;
 
@@ -821,3 +824,5 @@ uint8_t process_OW(void) {
 
 	return ow_task_scheduler;
 }
+
+#endif

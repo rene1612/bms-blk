@@ -33,15 +33,17 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include <dev_config.h>
 #include "neey.h"
-#include "OneWire.h"
 
+#ifdef __OW_ONEWIRE_OLD__
+ #include "OneWire.h"
+#endif
 
 #ifndef __BOARD_TYPE__
 	#define __BOARD_TYPE__				BMS_BLK_BOARD
 #endif
 
 //
-#define __BRD_ID__						0x02
+#define __BRD_ID__						0x07
 
 #ifndef __DEV_ID__
 	#define __DEV_ID__					(__BOARD_TYPE__ + __BRD_ID__)
@@ -55,6 +57,8 @@ extern "C" {
 
 #define __BOARD_NAME__ 					"BMS_BLK_BOARD"
 
+//#define __WS2812B__
+#define MAXDEVICES_ON_THE_BUS	23
 
 /* USER CODE END Includes */
 
@@ -62,6 +66,7 @@ extern "C" {
 /* USER CODE BEGIN ET */
 extern uint8_t main_task_scheduler;
 extern uint8_t alive_timer;
+/* USER CODE END ET */
 
 /* USER CODE BEGIN Private defines */
 
@@ -96,6 +101,7 @@ extern uint8_t alive_timer;
   #define REG_CTRL_ENABLE_PB		2
   #define REG_CTRL_ENABLE_OW		3
   #define REG_CTRL_ENABLE_NEEY		4
+  #define REG_CTRL_ENABLE_WS2815	5
   #define REG_CTRL_CRIT_ALERT		6
   #define REG_CTRL_RESET			7	//!<Reset des Controllers auslösen
 
@@ -293,17 +299,24 @@ typedef struct
  typedef struct
  {
 	uint8_t						ctrl;
+
 	_SYS_STATE					sys_state;
 	_SYS_ERR_CODES				sys_err;
 	_LED_STATE					monitor_led_state;
+
 	uint8_t						alive_timeout;
+
 	uint32_t					can_rx_cmd_id;
 	uint32_t					can_tx_data_id;
 	uint32_t					can_tx_heartbeat_id;
 	uint32_t					can_rx_brdc_cmd_id;
 	uint32_t 					can_filterMask;
 	uint32_t 					can_filterID; // Only accept bootloader CAN message ID
+
 	_BMS_BLK_CONFIG_REGS		cfg_regs;
+	_DEV_CONFIG_REGS			dev_config;	//copy of dev-config
+	_SW_INFO_REGS				sw_info;	//copy of sw_info
+	_BOARD_INFO_STRUCT			board_info;	//copy of board_info
  }_MAIN_REGS;
 
 
@@ -315,7 +328,7 @@ uint8_t			bms_data_type;
 uint8_t			flags_ch_number;
 uint16_t		cell_voltage;
 uint16_t		cell_resistance;
-uint16_t		cell_temperature;
+int16_t			cell_temperature;
 }_BMS_CELL_DATA;
 
 typedef struct
@@ -400,11 +413,12 @@ void set_sys_state (_SYS_STATE sys_state);
 void DoAlert(uint8_t* p_msg, uint8_t len);
 void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask);
 
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define FAN_SPEED_Pin GPIO_PIN_1
-#define FAN_SPEED_GPIO_Port GPIOA
+#define WS2812B_LED_Pin GPIO_PIN_1
+#define WS2812B_LED_GPIO_Port GPIOA
 #define SPI1_DATA_STROBE_Pin GPIO_PIN_0
 #define SPI1_DATA_STROBE_GPIO_Port GPIOB
 #define SPI1_OE_Pin GPIO_PIN_1
@@ -418,7 +432,7 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask);
 #define LED_BLUE_Pin GPIO_PIN_14
 #define LED_BLUE_GPIO_Port GPIOB
 
-/* USER CODE BEGIN Private defines */
+/* USER CODE BEGIN MYPD */
 #undef LED_GREEN_Pin
 #undef LED_RED_Pin
 #undef LED_BLUE_Pin
@@ -426,8 +440,12 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask);
 #define LED_RED_Pin GPIO_PIN_12
 #define LED_BLUE_Pin GPIO_PIN_13
 
+#ifdef __WS2812B__
+ #define WS2815_ENABLE_Pin			GPIO_PIN_4
+ #define WS2815_ENABLE_GPIO_Port	GPIOB
+#endif
+/* USER CODE END MYPD */
 
-/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }

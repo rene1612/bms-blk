@@ -119,7 +119,7 @@
 #else
 	#define VECT_TAB_BASE_ADDRESS   DEV_APP_ADDRESS      /*!< Vector Table base address field.*/
 #endif                                                /*!<    This value must be a multiple of 0x200. */
-                                                     This value must be a multiple of 0x200. */
+                                                     /*This value must be a multiple of 0x200. */
 #define VECT_TAB_OFFSET         0x00000000U     /*!< Vector Table base offset field.
                                                      This value must be a multiple of 0x200. */
 #endif /* VECT_TAB_SRAM */

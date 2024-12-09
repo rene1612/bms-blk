@@ -21,7 +21,6 @@
 #include "can.h"
 #include "crc.h"
 #include "dma.h"
-#include "rtc.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -32,9 +31,16 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#include "OneWire.h"
+
+//#include "OneWire.h"
+#include "dallas_temperature.h"
+#include "UartOneWire.h"
+
 #include "neey.h"
 #include "passive_balancer.h"
+#ifdef __WS2812B__
+#include "ws2812b.h"
+#endif
 
 #if __has_include("gitcommit.h")
 	#include "gitcommit.h"
@@ -45,10 +51,57 @@
 	#define __GIT_DATE_UT__ 1732571756
 #endif
 
+
+/* Fash memory organisation
+
+		0x8020000 -> +-------------+
+					 | 0x801FC00   |	\
+					 |    to       |	 \
+					 | 0x802FFFF   |	  |- Reserved for checksum and other informations
+					 |   1 KB      |	 /
+					 | data        |	/
+		0x801FC00 -> +-------------+
+					 | 0x801F800   |	\
+					 |    to       |	 \
+					 | 0x801FBFF   |	  |- Bootloader and device Config-Stuff
+					 |   1 KB      |	 /		(Dev-Addr->Can-ID, can-baudrate, Boardtype, Boardversion ...)
+					 | data        |	/		 @see dev_config_regs
+		0x801F800 -> +-------------+
+					 | 0x801F000   |	\
+					 |    to       |	 \
+					 | 0x801F7FF   |	  |- Applicaton Configdata
+					 |   2 KB      |	 /		(Tempsensor ID-Lookup table, Calibration-Data, Thresholds, ...)
+					 | data        |	/		 @see app_cfg_regs
+		0x801F000 -> +-------------+
+					 |             |	\
+					 |             |	 \
+					 |             |	  |
+					 |             |	  |
+					 | 0x8008000   |	  |
+					 |    to       |	  |
+					 | 0x801EFFF   |	  |- Contain the application software (this project)
+					 |   92 KB     |	  |
+					 | application |	  |
+					 |             |	  |
+					 |             |	  |
+					 |             |	 /
+					 |             |	/
+		0x8008000 -> +-------------+
+					 |             |	\
+					 | 0x8000000   |	 \
+					 |    to       |	  |
+					 | 0x8007FFF   |	  |- Contain bootloader software
+					 |   32 KB     |	  |		@see CAN_BOOT-Projecz
+					 | bootloader  |	 /
+					 |             |	/
+		0x8000000 -> +-------------+
+ */
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+#define LEDS 22
 
 /* USER CODE END PTD */
 
@@ -71,9 +124,17 @@ uint8_t alive_timer;
 uint16_t timer_10ms;
 
 
+extern UART_HandleTypeDef huart3;
+UartOneWire_HandleTypeDef ow;
+DallasTemperatureData dt;
+
+uint8_t resolution = TEMP_12_BIT;
+
+
+
 //#define __DEBUG__
 
-#ifdef __DEBUG__
+//#ifdef __DEBUG__
 ////alles was persistend (im Flash) gespeichert werden soll, z.b. Kalibration, ...
 __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_regs = {
 	__DEV_ID__,
@@ -86,11 +147,11 @@ __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_re
 	DEAULT_TRIPP_CAN_ID,
 	DEAULT_BROADCAST_CAN_ID
 };
-#endif
+//#endif
 
 
 ////Boardinfoname , ...
-__attribute__((__section__(".board_info"))) const unsigned char BOARD_NAME[16] = __BOARD_NAME__;
+__attribute__((__section__(".board_info"))) _BOARD_INFO_STRUCT board_name = {__BOARD_NAME__};
 
 ////Softwareinfo, ...
 __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
@@ -132,7 +193,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
 	},
-#ifdef __DEBUG__
+#if defined __DEBUG__ && defined __ALERT_DEBUG__
 	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
 	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
 
@@ -140,10 +201,10 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
 #else
 	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
-	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
+	(1<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
 
 	((0<<REG_ALERT_HEAT_SINK_TEMP) | (0<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
-	(1<<REG_ALERT_CELL_RESISTANCE) | (1<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
+	(1<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (1<<REG_ALERT_BLK_VOLTAGE) | (1<<REG_ALERT_BLK_DIFF_VOLTAGE)), //crit_allert_mask
 #endif
 	{
 			{2500,3650,(ENABLE_MAX_THRESHOLD|ENABLE_MIN_THRESHOLD)}, //cell_voltage 1/1000 Volt
@@ -168,7 +229,8 @@ const _DEV_CONFIG_REGS* pDevConfig = (const _DEV_CONFIG_REGS*)DEV_CONFIG_FL_ADDR
  */
 _MAIN_REGS main_regs = {
 	//!<RW CTRL Ein-/Ausschalten usw.  (1 BYTE )
-	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALERT) | (1<<REG_CTRL_ENABLE_PB) | (0<<REG_CTRL_ENABLE_OW) | (1<<REG_CTRL_ENABLE_NEEY)),
+	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALERT) | (1<<REG_CTRL_ENABLE_PB) |
+			(1<<REG_CTRL_ENABLE_OW) | (1<<REG_CTRL_ENABLE_NEEY) |  (1<<REG_CTRL_ENABLE_WS2815) ),
 
 	SYS_OK,
 	ERR_NONE,
@@ -209,7 +271,7 @@ int _write(int file, char *ptr, int len)
 	 return len;
  }
 
-_LED_SIGNAL_STATE	led_state={1,SLOW_FLASH,OFF,OFF};
+_LED_SIGNAL_STATE	led_signal_state={1,SLOW_FLASH,OFF,OFF};
 
 /****************************************************************************
   * @brief  The application entry point.
@@ -218,14 +280,14 @@ _LED_SIGNAL_STATE	led_state={1,SLOW_FLASH,OFF,OFF};
 void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
 {
 	if(led & GREEN_LED)
-		led_state.green_led_mask=mask;
+		led_signal_state.green_led_mask=mask;
 
 	if(led & RED_LED)
-		led_state.red_led_mask=mask;
+		led_signal_state.red_led_mask=mask;
 
 	if(led & BLUE_LED) {
-		led_state.blue_led_mask=mask;
-		led_state.mask=1;
+		led_signal_state.blue_led_mask=mask;
+		led_signal_state.mask=1;
 	}
 
 	return;
@@ -239,41 +301,41 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
 void signal_led_task(void)
 {
 
-	if(led_state.green_led_mask & led_state.mask) {
+	if(led_signal_state.green_led_mask & led_signal_state.mask) {
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 	}else {
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 	}
 
-	if(led_state.red_led_mask & led_state.mask) {
+	if(led_signal_state.red_led_mask & led_signal_state.mask) {
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
 	}else {
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 	}
 
-	if(led_state.blue_led_mask & led_state.mask) {
+	if(led_signal_state.blue_led_mask & led_signal_state.mask) {
 		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
-		led_state.blue_led_mask &= + ~led_state.mask;
+		led_signal_state.blue_led_mask &= + ~led_signal_state.mask;
 	}else {
 		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 	}
 
-	led_state.mask<<=1;
-	if (!led_state.mask) {
-		led_state.mask=1;
+	led_signal_state.mask<<=1;
+	if (!led_signal_state.mask) {
+		led_signal_state.mask=1;
 	}
 }
 
 
 /* USER CODE END 0 */
 
-/****************************************************************************
+/**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 	uint8_t second_counter=1;
 	main_task_scheduler = 0;
 	alive_timer = 0;
@@ -281,37 +343,45 @@ int main(void)
 
 	memcpy(&main_regs.cfg_regs, &app_cfg_regs, sizeof(_BMS_BLK_CONFIG_REGS));
 
-/* USER CODE END 1 */
+	//copy dev-config from flash to ram (we will use it from ram)
+	memcpy(&main_regs.dev_config, pDevConfig, sizeof(_DEV_CONFIG_REGS));
 
-	/* MCU Configuration--------------------------------------------------------*/
+	//copy sofware-info from flash to ram (we will use it from ram)
+	memcpy(&main_regs.sw_info, &sw_info_regs, sizeof(_SW_INFO_REGS));
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+	//copy board-name from flash to ram (we will use it from ram)
+	memcpy(&main_regs.board_info, &board_name, sizeof(_BOARD_INFO_STRUCT));
 
-/* USER CODE BEGIN Init */
+  /* USER CODE END 1 */
 
-/* USER CODE END Init */
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN Init */
 
-/* USER CODE END SysInit */
+  /* USER CODE END Init */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_DMA_Init();
-	MX_CAN_Init();
-	MX_RTC_Init();
-	MX_SPI1_Init();
-	MX_USART1_UART_Init();
-	MX_USART2_UART_Init();
-	MX_CRC_Init();
-	MX_USART3_UART_Init();
-	MX_TIM4_Init();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-/* USER CODE BEGIN 2 */
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_CAN_Init();
+  MX_SPI1_Init();
+  MX_USART1_UART_Init();
+  MX_USART2_UART_Init();
+  MX_CRC_Init();
+  MX_USART3_UART_Init();
+  MX_TIM4_Init();
+  MX_TIM2_Init();
+  /* USER CODE BEGIN 2 */
 
 
 	HAL_CAN_Start(&hcan);
@@ -327,7 +397,12 @@ int main(void)
 
 	//start one-wire temperature sensors
 	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
-		get_ROMid();
+		//get_ROMid();
+		OW_Init(&ow, &huart3);
+		DT_SetOneWire(&dt, &ow);
+		DT_init(&dt, resolution);
+
+		main_task_scheduler |= PROCESS_OW;
 	}
 
 	// Start our 10ms timer
@@ -336,14 +411,21 @@ int main(void)
 	//start all neey releated stuff
 	MX_NEEY_Init();
 
-/* USER CODE END 2 */
+#ifdef __WS2812B__
+	//ws2815-led-monitor
+	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_WS2815)) {
+		ws2812b_init(&htim2, TIM_CHANNEL_2, LEDS);
+	}
+#endif
+
+  /* USER CODE END 2 */
 
   /* Infinite loop */
-/* USER CODE BEGIN WHILE */
+  /* USER CODE BEGIN WHILE */
 	while (1) {
-/* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-/* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 
 	  /* PROCESS_NEEY  ------------------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_NEEY) {
@@ -371,10 +453,14 @@ int main(void)
 	  /* PROCESS_OW  ------------------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_OW) {
 		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)){
-			  if (!process_OW()){
-				  //
-				  main_task_scheduler &= ~PROCESS_OW;
-			  }
+//			  if (!process_OW()){
+//				  //
+//				  main_task_scheduler &= ~PROCESS_OW;
+//			  }
+
+				uint32_t millis = HAL_GetTick();
+				DT_ContiniousProceed(&dt, millis);
+
 		  }else {
 			  main_task_scheduler &= ~PROCESS_OW;
 		  }
@@ -408,7 +494,9 @@ int main(void)
 		  main_task_scheduler &= ~PROCESS_1000_MS_TASK;
 
 		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
-			  get_Temperature();
+			  //get_Temperature();
+
+			  temperatures[0] = getTemperatureByPosition_Celsius(&dt, 0);
 		  }
 
 		  if (!(second_counter%2)) {
@@ -423,7 +511,7 @@ int main(void)
 	  }
 
   }
-/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**
@@ -434,7 +522,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -461,12 +548,6 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV128;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
