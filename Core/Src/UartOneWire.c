@@ -170,63 +170,62 @@ uint8_t OW_Send(UartOneWire_HandleTypeDef* ow, uint8_t *command, uint8_t cLen, u
 {
 	switch(ow->transmittState) {
 
-	case 0: {
-		uint8_t state = OW_Reset(ow);
+		case 0: {
+			uint8_t state = OW_Reset(ow);
 
-		if(state == OW_NO_DEVICE) {
-			return OW_NO_DEVICE;
-		} else if(state == OW_OK) {
-			ow->command_ptr = command;
-			ow->w_size = cLen;
+			if(state == OW_NO_DEVICE) {
+				return OW_NO_DEVICE;
+			} else if(state == OW_OK) {
+				ow->command_ptr = command;
+				ow->w_size = cLen;
 
-			ow->data_ptr = data;
-			ow->r_size = dLen;
-			ow->read_start = readStart;
+				ow->data_ptr = data;
+				ow->r_size = dLen;
+				ow->read_start = readStart;
 
-
-			ow->transmittState++;
-		}
-		break;
-	}
-
-	case 1:
-		if(ow->w_size) {
-			OW_ToBits(*ow->command_ptr, (uint8_t *)ow->ROM_WR_NO);
-			ow->command_ptr++;
-			ow->w_size--;
-
-			HAL_UART_Receive_DMA(ow->huart, (uint8_t*)ow->ROM_RD_NO, 8);
-			HAL_UART_Transmit_DMA(ow->huart, (uint8_t*)ow->ROM_WR_NO, 8);
-			ow->lastTime = HAL_GetTick();
-			ow->transmittState++;
-		} else {
-			ow->transmittState = 0;
-			return OW_OK;
-		}
-		break;
-
-	case 2:
-		if (HAL_UART_GetState(ow->huart) == HAL_UART_STATE_READY || ((HAL_GetTick() - ow->lastTime) > 5)) {
-			ow->transmittState++;
-		}
-		break;
-
-	case 3:
-		if (!ow->read_start && ow->r_size) {
-			*ow->data_ptr = OW_ToByte((uint8_t *)ow->ROM_RD_NO);
-			ow->data_ptr++;
-			ow->r_size--;
-		} else {
-			if (ow->read_start != OW_NO_READ) {
-				ow->read_start--;
+				ow->transmittState++;
 			}
+			break;
 		}
-		ow->transmittState = 1;
-		break;
 
-	default:
-		ow->transmittState = 0;
-		break;
+		case 1:
+			if(ow->w_size) {
+				OW_ToBits(*ow->command_ptr, (uint8_t *)ow->ROM_WR_NO);
+				ow->command_ptr++;
+				ow->w_size--;
+
+				HAL_UART_Receive_DMA(ow->huart, (uint8_t*)ow->ROM_RD_NO, 8);
+				HAL_UART_Transmit_DMA(ow->huart, (uint8_t*)ow->ROM_WR_NO, 8);
+				ow->lastTime = HAL_GetTick();
+				ow->transmittState++;
+			} else {
+				ow->transmittState = 0;
+				return OW_OK;
+			}
+			break;
+
+		case 2:
+			if (HAL_UART_GetState(ow->huart) == HAL_UART_STATE_READY || ((HAL_GetTick() - ow->lastTime) > 5)) {
+				ow->transmittState++;
+			}
+			break;
+
+		case 3:
+			if (!ow->read_start && ow->r_size) {
+				*ow->data_ptr = OW_ToByte((uint8_t *)ow->ROM_RD_NO);
+				ow->data_ptr++;
+				ow->r_size--;
+			} else {
+				if (ow->read_start != OW_NO_READ) {
+					ow->read_start--;
+				}
+			}
+			ow->transmittState = 1;
+			break;
+
+		default:
+			ow->transmittState = 0;
+			break;
 	}
 
 	return OW_WAIT;
