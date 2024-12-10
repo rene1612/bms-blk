@@ -56,7 +56,7 @@ typedef struct {
 	// count of devices on the bus
 	uint8_t devicesCount;
 	float temp[DS_MAX_SENSORS];
-	uint8_t id[8 * DS_MAX_SENSORS];
+	uint8_t id[DS_MAX_SENSORS][8];
 
 	uint8_t rddata[10];
 	uint8_t wrdata[20];

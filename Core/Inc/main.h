@@ -43,7 +43,7 @@ extern "C" {
 #endif
 
 //
-#define __BRD_ID__						0x07
+#define __BRD_ID__						0x05
 
 #ifndef __DEV_ID__
 	#define __DEV_ID__					(__BOARD_TYPE__ + __BRD_ID__)
@@ -57,8 +57,11 @@ extern "C" {
 
 #define __BOARD_NAME__ 					"BMS_BLK_BOARD"
 
-//#define __WS2812B__
+#define __WS2812B__
 #define MAXDEVICES_ON_THE_BUS	23
+
+
+#define __ALLERT_DEBUG__
 
 /* USER CODE END Includes */
 
@@ -352,6 +355,7 @@ uint8_t			bms_data_type;
 uint8_t			flags_ch_number;
 uint16_t		bal_current;
 int16_t			neey_temperatur;
+int16_t			heat_sink_temperatur;
 }_BMS_BLK_DATA3;
 
 #pragma pack(pop)
@@ -444,6 +448,12 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask);
  #define WS2815_ENABLE_Pin			GPIO_PIN_4
  #define WS2815_ENABLE_GPIO_Port	GPIOB
 #endif
+
+#ifdef __DEBUG__
+ #define WS2815_ENABLE_Pin			GPIO_PIN_4
+ #define WS2815_ENABLE_GPIO_Port	GPIOB
+#endif
+
 /* USER CODE END MYPD */
 
 

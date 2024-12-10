@@ -33,6 +33,7 @@
 #endif
 
 extern const _DEV_CONFIG_REGS* pDevConfig;
+extern DallasTemperatureData dt;
 
 CAN_TxHeaderTypeDef	TxHeader, ReplayHeader, TripHeader, AllertHeader, BroadcastHeader;
 uint8_t				CanTxData[8];
@@ -218,14 +219,17 @@ uint8_t prepare_BMS_CellData()
 
 	neey_ctrl.data_lock = 1;
 
-	for (cell_counter=0;cell_counter<neey_ctrl.neey_dev_info.CellCount;cell_counter++)
+	//for (cell_counter=0;cell_counter<neey_ctrl.neey_dev_info.CellCount;cell_counter++)
+	for (cell_counter=0;cell_counter<MAX_LF280K_CELL_COUNT;cell_counter++)
 	{
 		bms_cell_data[cell_counter].bms_data_type = BMS_GET_CELL_DATA_CMD;
 		bms_cell_data[cell_counter].flags_ch_number = (uint8_t)(cell_counter | (neey_ctrl.cell_data[cell_counter].flag << 5));
 		bms_cell_data[cell_counter].cell_voltage = neey_ctrl.cell_data[cell_counter].voltage;
 		bms_cell_data[cell_counter].cell_resistance = neey_ctrl.cell_data[cell_counter].resistance;
 		//		bms_cell_data[cell_counter].cell_temperature = Temp[cell_counter];
-		bms_cell_data[cell_counter].cell_temperature = (int16_t)(temperatures[cell_counter]*100);
+		//bms_cell_data[cell_counter].cell_temperature = (int16_t)(temperatures[cell_counter]*100);
+		bms_cell_data[cell_counter].cell_temperature = (int16_t)(dt.temp[cell_counter]*100);
+
 		//bms_cell_data[cell_counter].cell_flags = neey_ctrl.cell_data[cell_counter].flag;
 	}
 
@@ -257,6 +261,7 @@ uint8_t prepare_BMS_BLKData()
 	bms_blk_data3.flags_ch_number=3;
 	bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
 	bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
+	bms_blk_data3.heat_sink_temperatur=(int16_t)(dt.temp[22]*100);;
 
 	neey_ctrl.data_lock = 0;
 
@@ -302,7 +307,8 @@ uint8_t	process_CAN(void)
 				Error_Handler ();
 			}
 			else {
-				if (++current_cell_2_send >= neey_ctrl.neey_dev_info.CellCount) {
+				//if (++current_cell_2_send >= neey_ctrl.neey_dev_info.CellCount) {
+				if (++current_cell_2_send >= MAX_LF280K_CELL_COUNT) {
 					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_CELL_DATA;
 				}
 				set_signal_led(BLUE_LED, LED_200MS_FLASH);

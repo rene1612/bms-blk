@@ -381,7 +381,7 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 			}
 
 			//check resistance     if needed
-			if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_CELL_RESISTANCE)){
+			if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_CELL_RESISTANCE) && (neey_ctrl.cell_data[i].flag & NEEY_CELL_RESITANCE_VALID)){
 				if(main_regs.cfg_regs.alert_thresholds.cell_resistance.enable_mask&ENABLE_MAX_THRESHOLD){
 					if(neey_ctrl.cell_data[i].resistance >= main_regs.cfg_regs.alert_thresholds.cell_resistance.max){
 						//CellResistance max Allert

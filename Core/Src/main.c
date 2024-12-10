@@ -134,7 +134,7 @@ uint8_t resolution = TEMP_12_BIT;
 
 //#define __DEBUG__
 
-//#ifdef __DEBUG__
+#ifdef __DEBUG__
 ////alles was persistend (im Flash) gespeichert werden soll, z.b. Kalibration, ...
 __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_regs = {
 	__DEV_ID__,
@@ -147,7 +147,7 @@ __attribute__((__section__(".dev_config"))) const _DEV_CONFIG_REGS dev_config_re
 	DEAULT_TRIPP_CAN_ID,
 	DEAULT_BROADCAST_CAN_ID
 };
-//#endif
+#endif
 
 
 ////Boardinfoname , ...
@@ -193,7 +193,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
 	},
-#if defined __DEBUG__ && defined __ALERT_DEBUG__
+#if defined (__DEBUG__)
 	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
 	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
 
@@ -216,6 +216,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 	}
 };
 
+//#if defined (__DEBUG__) && defined(__ALERT_DEBUG__)
 
 const _DEV_CONFIG_REGS* pDevConfig = (const _DEV_CONFIG_REGS*)DEV_CONFIG_FL_ADDRESS;
 
@@ -509,6 +510,8 @@ int main(void)
 
 		  //HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
 	  }
+
+	  HAL_GPIO_TogglePin(WS2815_ENABLE_GPIO_Port, WS2815_ENABLE_Pin);
 
   }
   /* USER CODE END 3 */

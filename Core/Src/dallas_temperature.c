@@ -51,8 +51,9 @@ uint8_t DT_Search(DallasTemperatureData* dt) {
 		return OW_NO_DEVICE;
 	}
 
-	for(uint8_t i = 0; i < DS_MAX_SENSORS * 8; ++i) {
-		dt->id[i] = 0;
+	for(uint8_t i = 0; i < DS_MAX_SENSORS; ++i) {
+		for(uint8_t j = 0; j < 8; j++)
+			dt->id[i][j] = 0;
 	}
 	dt->devicesCount = 0;
 	dt->state = 0;
@@ -80,7 +81,7 @@ uint8_t DT_Search(DallasTemperatureData* dt) {
 			}
 		}
 
-		dt->devicesCount = OW_SearchBlock(dt->ow, dt->id, DS_MAX_SENSORS);
+		dt->devicesCount = OW_SearchBlock(dt->ow, (uint8_t *)&dt->id, DS_MAX_SENSORS);
 		if(dt->devicesCount) {
 			break;
 		}
@@ -89,6 +90,7 @@ uint8_t DT_Search(DallasTemperatureData* dt) {
 
 	return OW_OK;
 }
+
 
 void DT_init(DallasTemperatureData* dt, uint8_t resolution) {
 	if(!dt->ow || !dt) {
@@ -103,6 +105,7 @@ void DT_init(DallasTemperatureData* dt, uint8_t resolution) {
 	}
 	dt->resolution = resolution;
 }
+
 
 uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time) {
 
@@ -148,7 +151,7 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time) {
 
 	case 3:
 		dt->wrdata[0] = MatchROM;
-		memcpy(&dt->wrdata[1], &dt->id[dt->counteRead << 3], 8);
+		memcpy(&dt->wrdata[1], dt->id[dt->counteRead], 8);
 		dt->wrdata[9] = READSCRATCH;
 
 		for(uint8_t i = 10; i < 19; ++i) {

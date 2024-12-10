@@ -53,11 +53,22 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, SPI1_DATA_STROBE_Pin|LED_GREEN_Pin|LED_RED_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
 
+  /* USER CODE BEGIN 2 */
+  #ifdef WS2815_ENABLE_GPIO_Port
+    HAL_GPIO_WritePin(GPIOB, WS2815_ENABLE_Pin, GPIO_PIN_RESET);
+  #endif
+  /* USER CODE END 2 */
+
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SPI1_OE_GPIO_Port, SPI1_OE_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : PBPin PBPin PBPin PBPin */
   GPIO_InitStruct.Pin = SPI1_DATA_STROBE_Pin|LED_GREEN_Pin|LED_RED_Pin|LED_BLUE_Pin;
+  /* USER CODE BEGIN 3 */
+  #ifdef WS2815_ENABLE_GPIO_Port
+  GPIO_InitStruct.Pin |= WS2815_ENABLE_Pin;
+  #endif
+  /* USER CODE END 3 */
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -72,8 +83,3 @@ void MX_GPIO_Init(void)
 
 }
 
-/* USER CODE BEGIN 2 */
-#ifdef WS2815_ENABLE_GPIO_Port
-  HAL_GPIO_WritePin(GPIOB, WS2815_ENABLE_Pin, GPIO_PIN_RESET);
-#endif
-/* USER CODE END 2 */

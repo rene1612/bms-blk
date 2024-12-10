@@ -94,6 +94,8 @@ typedef enum {
  * */
 #define	NEEY_CELL_CHARGING				0x01
 #define	NEEY_CELL_DISCHARGING			0x02
+#define NEEY_CELL_VOLTAGE_VALID			0x04
+#define NEEY_CELL_RESITANCE_VALID		0x08
 
 
 /**
