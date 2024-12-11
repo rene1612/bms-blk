@@ -214,10 +214,11 @@ uint8_t prepare_BMS_CellData()
 {
 	uint8_t cell_counter;
 
-	if (neey_ctrl.data_lock)
+	if (neey_ctrl.data_lock || dt.data_lock)
 		return 0;
 
 	neey_ctrl.data_lock = 1;
+	dt.data_lock = 1;
 
 	//for (cell_counter=0;cell_counter<neey_ctrl.neey_dev_info.CellCount;cell_counter++)
 	for (cell_counter=0;cell_counter<MAX_LF280K_CELL_COUNT;cell_counter++)
@@ -228,12 +229,13 @@ uint8_t prepare_BMS_CellData()
 		bms_cell_data[cell_counter].cell_resistance = neey_ctrl.cell_data[cell_counter].resistance;
 		//		bms_cell_data[cell_counter].cell_temperature = Temp[cell_counter];
 		//bms_cell_data[cell_counter].cell_temperature = (int16_t)(temperatures[cell_counter]*100);
-		bms_cell_data[cell_counter].cell_temperature = (int16_t)(dt.temp[cell_counter]*100);
+		bms_cell_data[cell_counter].cell_temperature = (int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[cell_counter]);
 
 		//bms_cell_data[cell_counter].cell_flags = neey_ctrl.cell_data[cell_counter].flag;
 	}
 
 	neey_ctrl.data_lock = 0;
+	dt.data_lock = 0;
 
 	current_cell_2_send=0;
 	//current_blk_data_2_send=0;
@@ -243,10 +245,11 @@ uint8_t prepare_BMS_CellData()
 
 uint8_t prepare_BMS_BLKData()
 {
-	if (neey_ctrl.data_lock)
+	if (neey_ctrl.data_lock  || dt.data_lock)
 		return 0;
 
 	neey_ctrl.data_lock = 1;
+	dt.data_lock = 1;
 
 	bms_blk_data1.bms_data_type=BMS_GET_BLK_DATA_CMD;
 	bms_blk_data1.flags_ch_number=1;
@@ -261,9 +264,10 @@ uint8_t prepare_BMS_BLKData()
 	bms_blk_data3.flags_ch_number=3;
 	bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
 	bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
-	bms_blk_data3.heat_sink_temperatur=(int16_t)(dt.temp[22]*100);;
+	bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[22]);
 
 	neey_ctrl.data_lock = 0;
+	dt.data_lock = 0;
 
 	current_blk_data_2_send=0;
 

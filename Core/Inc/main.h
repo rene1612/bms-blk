@@ -241,7 +241,7 @@ typedef struct
  typedef struct
  {
 	 _NEEY_CONFIG_DATA			neey_cfg_data;
-	 uint64_t 					temp_sensor_lookup_table[MAXDEVICES_ON_THE_BUS];
+	 uint8_t 					temp_sensor_lookup_table[MAXDEVICES_ON_THE_BUS][8];
 	 _LF280K_QR_INFO_STRUCT		lf280k_qr_info[MAX_LF280K_CELL_COUNT];
 	uint8_t						alert_mask;
 	uint8_t						crit_alert_mask;

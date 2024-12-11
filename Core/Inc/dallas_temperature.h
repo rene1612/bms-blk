@@ -56,6 +56,7 @@ typedef struct {
 	// count of devices on the bus
 	uint8_t devicesCount;
 	float temp[DS_MAX_SENSORS];
+	int16_t fixpoint_temp[DS_MAX_SENSORS];
 	uint8_t id[DS_MAX_SENSORS][8];
 
 	uint8_t rddata[10];
@@ -65,6 +66,7 @@ typedef struct {
 	uint8_t resolution;
 	uint32_t lastTime;
 	uint8_t counteRead;
+	uint8_t data_lock;
 } DallasTemperatureData;
 
 void DT_SetOneWire(DallasTemperatureData* dt, UartOneWire_HandleTypeDef* ow);
@@ -74,6 +76,8 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time);
 
 // getters--------------------------------------------------------------------
 float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t position);
+
+int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array);
 
 extern float temperatures[DS_MAX_SENSORS];
 

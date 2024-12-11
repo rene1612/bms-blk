@@ -65,6 +65,7 @@ void DT_SetOneWire(DallasTemperatureData* dt, UartOneWire_HandleTypeDef* ow)
 	dt->devicesCount = 0;
 	dt->resolution = 0;
 	dt->lastTime = 0;
+	dt->data_lock = 0;
 	DT_Search(dt);
 }
 
@@ -229,8 +230,21 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time) {
 				dt->state = 3;
 			} else {
 				dt->counteRead = 0;
+				dt->state++;
+			}
+			break;
+		}
+
+		case 6: {
+			uint8_t index;
+
+			if (!dt->data_lock) {
+				for (index=0; index < dt->devicesCount; index++) {
+					dt->fixpoint_temp[index] = (int16_t)(dt->temp[index] * 100);
+				}
 				dt->state = 0;
 			}
+
 			break;
 		}
 
@@ -251,6 +265,32 @@ float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t positi
 		return 0.0;
 	}
 	return dt->temp[position];
+}
+
+
+/***********************************************************************************************
+ * @fn		getTemperatureByROM_Celsius
+ * @brief	Read temeratures from interna array
+ * @param 	dt			DallasTemperatureData Handle
+ * @param 	p_rom_array	array with rom code to read from
+ * @return 	float temperature value in °C
+ */
+int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array) {
+	uint8_t index;
+	uint8_t* p_rom_index;
+
+	if(!p_rom_array  || !dt) {
+		return 0.0;
+	}
+
+	for (index=0; index<dt->devicesCount;index++){
+		p_rom_index = (uint8_t*)dt->id[index];
+		if (memcmp(p_rom_index, p_rom_array, 8)==0){
+			return dt->fixpoint_temp[index];
+		}
+	}
+
+	return 0.0;
 }
 
 
