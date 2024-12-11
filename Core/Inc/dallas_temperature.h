@@ -79,6 +79,4 @@ float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t positi
 
 int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array);
 
-extern float temperatures[DS_MAX_SENSORS];
-
 #endif /* INC_DALLAS_TEMPERATURE_H_ */

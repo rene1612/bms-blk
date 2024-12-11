@@ -398,7 +398,6 @@ int main(void)
 
 	//start one-wire temperature sensors
 	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
-		//get_ROMid();
 		OW_Init(&ow, &huart3);
 		DT_SetOneWire(&dt, &ow);
 		DT_init(&dt, resolution);
@@ -454,10 +453,6 @@ int main(void)
 	  /* PROCESS_OW  ------------------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_OW) {
 		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)){
-//			  if (!process_OW()){
-//				  //
-//				  main_task_scheduler &= ~PROCESS_OW;
-//			  }
 
 				uint32_t millis = HAL_GetTick();
 				DT_ContiniousProceed(&dt, millis);
@@ -466,6 +461,7 @@ int main(void)
 			  main_task_scheduler &= ~PROCESS_OW;
 		  }
 	  }
+
 
 	  /* PROCESS_CAN  -----------------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_CAN) {
@@ -490,15 +486,10 @@ int main(void)
 		  signal_led_task();
 	  }
 
+
 	  /* PROCESS_1000_MS_TASK  ----------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_1000_MS_TASK) {
 		  main_task_scheduler &= ~PROCESS_1000_MS_TASK;
-
-		  if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
-			  //get_Temperature();
-
-			  temperatures[0] = getTemperatureByPosition_Celsius(&dt, 0);
-		  }
 
 		  if (!(second_counter%2)) {
 			  if(main_regs.ctrl & (1<<REG_CTRL_ENABLE_NEEY)) {
@@ -507,12 +498,11 @@ int main(void)
 			  }
 		  }
 		second_counter++;
-
-		  //HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
 	  }
 
+#ifdef __DEBUG__
 	  HAL_GPIO_TogglePin(WS2815_ENABLE_GPIO_Port, WS2815_ENABLE_Pin);
-
+#endif
   }
   /* USER CODE END 3 */
 }

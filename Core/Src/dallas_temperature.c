@@ -8,9 +8,6 @@
 #include "string.h"
 
 
-float temperatures[DS_MAX_SENSORS] = {};
-
-//
 
 /***********************************************************************************************
  * DT_IsConnected_ScratchPad
@@ -35,14 +32,14 @@ static uint8_t DT_MillisToWaitForConversion(DallasTemperatureData* dt, uint32_t 
 {
 	switch (dt->resolution) {
 		case TEMP_9_BIT:
-			return (uint8_t)((dt->lastTime - time) > 94);
+			return (uint8_t)((time - dt->lastTime) > 94);
 		case TEMP_10_BIT:
-			return (uint8_t)((dt->lastTime - time) > 188);
+			return (uint8_t)((time - dt->lastTime) > 188);
 		case TEMP_11_BIT:
-			return (uint8_t)((dt->lastTime - time) > 375);
+			return (uint8_t)((time - dt->lastTime) > 375);
+		case TEMP_12_BIT:
 		default:
 			return (uint8_t)((time - dt->lastTime) > 750);
-			//return (uint8_t)((dt->lastTime - time) > 750);
 	}
 }
 
@@ -255,7 +252,7 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time) {
 
 /***********************************************************************************************
  * @fn		getTemperatureByPosition_Celsius
- * @brief	Read temeratures from interna array
+ * @brief	Read temeratures from internal array
  * @param 	dt			DallasTemperatureData Handle
  * @param 	position	Position/Sensor-Nr. to read
  * @return 	float temperature value in °C
@@ -270,22 +267,21 @@ float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t positi
 
 /***********************************************************************************************
  * @fn		getTemperatureByROM_Celsius
- * @brief	Read temeratures from interna array
+ * @brief	Read temeratures from internal array
  * @param 	dt			DallasTemperatureData Handle
  * @param 	p_rom_array	array with rom code to read from
- * @return 	float temperature value in °C
+ * @return 	int16 temperature value in 1/100°C
  */
 int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array) {
 	uint8_t index;
-	uint8_t* p_rom_index;
+	//uint8_t* p_rom_index;
 
 	if(!p_rom_array  || !dt) {
 		return 0.0;
 	}
 
 	for (index=0; index<dt->devicesCount;index++){
-		p_rom_index = (uint8_t*)dt->id[index];
-		if (memcmp(p_rom_index, p_rom_array, 8)==0){
+		if (memcmp(p_rom_array, (uint8_t*)dt->id[index], 8)==0){
 			return dt->fixpoint_temp[index];
 		}
 	}
