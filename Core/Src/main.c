@@ -188,13 +188,13 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		1,							//config_at_start
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt.txt"
+		#include "temp_sensor_lt_01_05.txt"
 	},
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
 	},
 #if defined (__DEBUG__)
-	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |
+	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(0<<REG_ALERT_CELL_VOLTAGE) |
 	(0<<REG_ALERT_CELL_RESISTANCE) | (0<<REG_ALERT_CELL_TEMP) | (0<<REG_ALERT_BLK_VOLTAGE) | (0<<REG_ALERT_BLK_DIFF_VOLTAGE)), //allert_mask
 
 	((0<<REG_ALERT_HEAT_SINK_TEMP) | (0<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(1<<REG_ALERT_CELL_VOLTAGE) |

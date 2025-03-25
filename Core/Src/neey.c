@@ -304,8 +304,11 @@ void check_and_send_config_data_NEEY(void) {
 //	    }
 
 	//start cmd for sending neey-data???
-	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
-//	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+	if (neey_ctrl.neey_state < RUN_MODE) {
+		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+//		send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_data, 0, init_buffer , 10);
+		neey_ctrl.neey_state = RUN_MODE;
+	}
 
 }
 
@@ -344,6 +347,7 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		neey_ctrl.data_lock = 1;
 
 		for(i=0; i < neey_ctrl.neey_dev_info.CellCount; i++) {
+
 			neey_ctrl.cell_data[i].voltage =(uint16_t)(p_rec_data_pkt->CellVoltage[i]*1000);
 			neey_ctrl.cell_data[i].resistance =(uint16_t)(p_rec_data_pkt->CellValue[i]*1000);
 			neey_ctrl.cell_data[i].flag = 0;
@@ -558,7 +562,7 @@ uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
 		return HAL_ERROR;
 
 #if defined __DEBUG__ && defined __ALLERT_DEBUG__
-	neey_ctrl.neey_dev_info.CellCount 		= 1;
+	neey_ctrl.neey_dev_info.CellCount 		= 2;
 #else
 	neey_ctrl.neey_dev_info.CellCount 		= p_rec_param_pkt->cell_count;
 #endif
@@ -620,8 +624,11 @@ uint8_t	process_NEEY(void)
 			//send via can???
 			//send config to neey if info data differs from cur neey-conig
 
+			neey_ctrl.neey_state = INIT_MODE;
+
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_param, 0, init_buffer , 10);
 		}
+
 
 		neey_start_DMA ();	//start over with serial rec of neey data
 
@@ -646,20 +653,22 @@ uint8_t	process_NEEY(void)
 		neey_task_scheduler &= ~PROCESS_NEEY_PARAM;
 	}
 
-	/* PROCESS_NEEY_PARAM --------------------------------------------------------*/
+
+	/* PROCESS_NEEY_ALIVE --------------------------------------------------------*/
 	if (neey_task_scheduler & PROCESS_NEEY_ALIVE)
 	{
-		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_NEEY_DATA)){
+		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_NEEY_DATA)) {
 
 			if(neey_ctrl.data_pkt_counter || neey_ctrl.last_checked_data_pkt_counter) {
 
 				if (neey_ctrl.data_pkt_counter == neey_ctrl.last_checked_data_pkt_counter) {
 					//critical
-					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_NEEY_DATA)){
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_NEEY_DATA)) {
 						alert_msg[0]=STATE_ERR_NEEY_DATA;
 						DoAlert(alert_msg,1);
 					}
-				}else {
+				}
+				else {
 					neey_ctrl.last_checked_data_pkt_counter = neey_ctrl.data_pkt_counter;
 				}
 			}

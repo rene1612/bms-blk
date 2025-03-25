@@ -43,6 +43,7 @@ CAN_RxHeaderTypeDef RxHeader;
 uint8_t				can_replay_msg;
 uint8_t             CanRxData[8];
 uint8_t				current_cell_2_send;
+uint8_t				max_cells_2_send;
 uint8_t				current_blk_data_2_send;
 _BMS_CELL_DATA		bms_cell_data[NEEY_CHANNEL_COUNT];
 _BMS_BLK_DATA1		bms_blk_data1;
@@ -53,7 +54,10 @@ _BMS_BLK_DATA3		bms_blk_data3;
 
 CAN_HandleTypeDef hcan;
 
-/* CAN init function */
+
+/* MX_CAN_Init -----------------------------------------------------------*/
+/*     CAN init functio                                                                          */
+/*--------------------------------------------------------------------------------*/
 void MX_CAN_Init(void)
 {
 
@@ -142,6 +146,11 @@ void MX_CAN_Init(void)
 
 }
 
+
+
+/* HAL_CAN_MspInit -----------------------------------------------------------*/
+/*                                                                               */
+/*--------------------------------------------------------------------------------*/
 void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -182,6 +191,9 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
   }
 }
 
+/* HAL_CAN_MspDeInit -----------------------------------------------------------*/
+/*                                                                               */
+/*--------------------------------------------------------------------------------*/
 void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 {
 
@@ -210,7 +222,13 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 
 /* USER CODE BEGIN 1 */
 
-uint8_t prepare_BMS_CellData()
+
+
+/* prepare_BMS_CellData -----------------------------------------------------------*/
+/*    Prepare Cell-Data for CAN-Transmission to EMS                               */
+/*    cells		Cell-Number to be send or  >=MAX_LF280K_CELL_COUNT for all cells  */
+/*--------------------------------------------------------------------------------*/
+uint8_t prepare_BMS_CellData(uint8_t cells)
 {
 	uint8_t cell_counter;
 
@@ -220,8 +238,19 @@ uint8_t prepare_BMS_CellData()
 	neey_ctrl.data_lock = 1;
 	dt.data_lock = 1;
 
+	if (cells >= MAX_LF280K_CELL_COUNT) {
+		max_cells_2_send = MAX_LF280K_CELL_COUNT;
+		cell_counter=0;
+		current_cell_2_send=0;
+	}
+	else {
+		max_cells_2_send = cells+1;
+		cell_counter = cells;
+		current_cell_2_send=cells;
+	}
+
 	//for (cell_counter=0;cell_counter<neey_ctrl.neey_dev_info.CellCount;cell_counter++)
-	for (cell_counter=0;cell_counter<MAX_LF280K_CELL_COUNT;cell_counter++)
+	for (;cell_counter<max_cells_2_send;cell_counter++)
 	{
 		bms_cell_data[cell_counter].bms_data_type = BMS_GET_CELL_DATA_CMD;
 		bms_cell_data[cell_counter].flags_ch_number = (uint8_t)(cell_counter | (neey_ctrl.cell_data[cell_counter].flag << 5));
@@ -237,12 +266,12 @@ uint8_t prepare_BMS_CellData()
 	neey_ctrl.data_lock = 0;
 	dt.data_lock = 0;
 
-	current_cell_2_send=0;
-	//current_blk_data_2_send=0;
-
 	return 1;
 }
 
+/* prepare_BMS_BLKData -------------------------------------------------------------*/
+/*    Prepare Block-Data for CAN-Transmission to EMS                             */
+/*----------------------------------------------------------------------------*/
 uint8_t prepare_BMS_BLKData()
 {
 	if (neey_ctrl.data_lock  || dt.data_lock)
@@ -275,9 +304,12 @@ uint8_t prepare_BMS_BLKData()
 }
 
 
+/* process_CAN -------------------------------------------------------------*/
+/*    Worker-Thread for CAN-Kommunikation                                    */
+/*----------------------------------------------------------------------------*/
 uint8_t	process_CAN(void)
 {
-	uint8_t len;
+	uint8_t len, cell;
 	//int16_t temperature;
 	uint16_t sys_reg, max_sys_reg_size;
 	uint8_t* p_sys_reg_offset;
@@ -288,7 +320,7 @@ uint8_t	process_CAN(void)
 	{
 		if (main_regs.cfg_regs.neey_cfg_data.auto_run) {
 
-			if (prepare_BMS_CellData()) {
+			if (prepare_BMS_CellData(MAX_LF280K_CELL_COUNT)) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
 			}
 
@@ -312,7 +344,7 @@ uint8_t	process_CAN(void)
 			}
 			else {
 				//if (++current_cell_2_send >= neey_ctrl.neey_dev_info.CellCount) {
-				if (++current_cell_2_send >= MAX_LF280K_CELL_COUNT) {
+				if (++current_cell_2_send >= max_cells_2_send) {
 					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_CELL_DATA;
 				}
 				set_signal_led(BLUE_LED, LED_200MS_FLASH);
@@ -564,7 +596,14 @@ uint8_t	process_CAN(void)
 #endif
 		/*****************************************************/
 		case BMS_GET_CELL_DATA_CMD:
-			if (prepare_BMS_CellData()) {
+			if (RxHeader.DLC > 1) {
+				cell = CanRxData[1];
+			}
+			else {
+				cell = MAX_LF280K_CELL_COUNT;
+			}
+
+			if (prepare_BMS_CellData(cell)) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
 			}
 			else {

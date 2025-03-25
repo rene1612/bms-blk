@@ -115,9 +115,11 @@ typedef enum
 {
 	NO_NEEY,
 	AT_MODE,
+	INIT_MODE,
 	RUN_MODE,
 	NEEY_MODE_END
 }_NEEY_STATE;
+
 
 typedef enum
 {
@@ -125,7 +127,6 @@ typedef enum
 	READ_HEADER,
 	READ_PKT_DATA,
 }_NEEY_RX_TRANSFER_STATE;
-
 
 
 
