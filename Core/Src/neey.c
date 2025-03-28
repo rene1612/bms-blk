@@ -247,6 +247,11 @@ void check_and_send_config_data_NEEY(void) {
 	//neey sends info packet after connect message (maybe config is included there)???
 	if (main_regs.cfg_regs.neey_cfg_data.config_at_start) { //do we need to send neey config (from app config) to neey??
 
+		if (neey_ctrl.neey_state >= RUN_MODE) {
+
+			//we entered conifg for the second time, this should no happen here
+		}
+
 		if (neey_ctrl.neey_dev_info.Buzzer==0 || neey_ctrl.neey_dev_info.Buzzer!=main_regs.cfg_regs.neey_cfg_data.buzzer) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_Buzzer, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.buzzer , sizeof(main_regs.cfg_regs.neey_cfg_data.buzzer));
 			HAL_Delay(200);

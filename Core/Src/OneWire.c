@@ -32,7 +32,7 @@ extern UART_HandleTypeDef huart3;
 //volatile uint8_t recvFlag;
 //volatile uint16_t rc_buffer[5];
 
-int16_t 	Temp[MAXDEVICES_ON_THE_BUS];
+int16_t 	Temp[MAX_TEMP_DEV_ON_THE_BUS];
 uint8_t 	devices;
 OneWire 	ow;
 uint32_t 	pDelay = 300, i;

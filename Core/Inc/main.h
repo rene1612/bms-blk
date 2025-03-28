@@ -58,7 +58,7 @@ extern "C" {
 #define __BOARD_NAME__ 					"BMS_BLK_BOARD"
 
 #define __WS2812B__
-#define MAXDEVICES_ON_THE_BUS	23
+#define MAX_TEMP_DEV_ON_THE_BUS			23
 
 
 #define __ALLERT_DEBUG__
@@ -87,10 +87,10 @@ extern uint8_t alive_timer;
 #define APP_CAN_BITRATE			500000UL
 
 #define __DEV_SIGNATURE__		0x12
-#define __SW_RELEASE__			0x0101
-#define SW_RELEASE_DAY			02
-#define SW_RELEASE_MONTH		12
-#define SW_RELEASE_YEAR			2024
+#define __SW_RELEASE__			0x0102
+#define SW_RELEASE_DAY			26
+#define SW_RELEASE_MONTH		03
+#define SW_RELEASE_YEAR			2025
 #define __SW_RELEASE_DATE__		((SW_RELEASE_DAY<<24 ) | (SW_RELEASE_MONTH<<18) | SW_RELEASE_YEAR)
 #define __SW_NAME__				"BMS-BLK-APP"
 
@@ -241,7 +241,7 @@ typedef struct
  typedef struct
  {
 	 _NEEY_CONFIG_DATA			neey_cfg_data;
-	 uint8_t 					temp_sensor_lookup_table[MAXDEVICES_ON_THE_BUS][8];
+	 uint8_t 					temp_sensor_lookup_table[MAX_TEMP_DEV_ON_THE_BUS][8];
 	 _LF280K_QR_INFO_STRUCT		lf280k_qr_info[MAX_LF280K_CELL_COUNT];
 	uint8_t						alert_mask;
 	uint8_t						crit_alert_mask;

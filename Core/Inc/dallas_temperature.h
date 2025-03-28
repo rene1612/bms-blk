@@ -11,7 +11,7 @@
 #include "main.h"
 #include "UartOneWire.h"
 
-#define DS_MAX_SENSORS MAXDEVICES_ON_THE_BUS
+#define DS_MAX_SENSORS MAX_TEMP_DEV_ON_THE_BUS
 
 #define DS_AlarmTH  0x64
 #define DS_AlarmTL  0x9e
@@ -77,6 +77,6 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time);
 // getters--------------------------------------------------------------------
 float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t position);
 
-int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array);
+int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t index);
 
 #endif /* INC_DALLAS_TEMPERATURE_H_ */

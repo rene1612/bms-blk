@@ -6,8 +6,11 @@
  */
 #include "dallas_temperature.h"
 #include "string.h"
+#include "main.h"
 
 
+
+uint8_t DT_Lut[MAX_TEMP_DEV_ON_THE_BUS];
 
 /***********************************************************************************************
  * DT_IsConnected_ScratchPad
@@ -122,6 +125,55 @@ uint8_t DT_Search(DallasTemperatureData* dt) {
 
 
 /***********************************************************************************************
+ * @fn		createTemp_Lut
+ * @param 	dt			DallasTemperatureData Handle
+ * @brief	create Look Up Table for all the temp-Sensores
+ * @return 	count for temp sensors matched from sensors on the bus to the sensors expected in table
+ */
+uint8_t createTemp_Lut(DallasTemperatureData* dt) {
+
+	uint8_t index, lut_index;
+	uint8_t match_count=0;
+	uint8_t accu_index=0;
+	uint8_t lut_accu_index=0;
+
+	if(!dt->devicesCount || !dt) {
+		return 0;
+	}
+
+
+	for (lut_index=0; lut_index < (dt->devicesCount - 1); lut_index++) {
+
+		lut_accu_index += (lut_index+1);
+
+		//step through the rom-code array of the sensors found on the bus and search for a match
+		for (index=0; index<dt->devicesCount; index++) {
+
+			if (memcmp((uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table+lut_index, (uint8_t*)dt->id[index], 8) == 0) {
+				DT_Lut[lut_index] = index;
+				accu_index += (index+1);
+				match_count++;
+			}
+			else {
+				DT_Lut[lut_index] = 0xFF;
+			}
+		}
+	}
+
+	//set the index for the heatsink temp sensor to last index in lut
+	DT_Lut[lut_index] = (lut_accu_index-accu_index-1);
+
+	//fehlerbehandlung
+
+	if (match_count!=lut_index || lut_index<MAX_TEMP_DEV_ON_THE_BUS) {
+		return 0;
+	}
+
+	return match_count;
+}
+
+
+/***********************************************************************************************
  * @fn		DT_init
  * @brief	Init function vor Tempearture Sensor from Dallas
  * @param 	dt		DallasTemperatureData Handle
@@ -140,6 +192,8 @@ void DT_init(DallasTemperatureData* dt, uint8_t resolution) {
 	}
 
 	dt->resolution = resolution;
+
+	createTemp_Lut(dt);
 
 	return;
 }
@@ -250,6 +304,7 @@ uint8_t DT_ContiniousProceed(DallasTemperatureData* dt, uint32_t time) {
 }
 
 
+
 /***********************************************************************************************
  * @fn		getTemperatureByPosition_Celsius
  * @brief	Read temeratures from internal array
@@ -269,23 +324,28 @@ float getTemperatureByPosition_Celsius(DallasTemperatureData* dt, uint8_t positi
  * @fn		getTemperatureByROM_Celsius
  * @brief	Read temeratures from internal array
  * @param 	dt			DallasTemperatureData Handle
- * @param 	p_rom_array	array with rom code to read from
+ * @param 	index	of temp-sensor from the look-up-table
  * @return 	int16 temperature value in 1/100°C
  */
-int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t* p_rom_array) {
-	uint8_t index;
+int16_t getTemperatureByROM_Celsius(DallasTemperatureData* dt, uint8_t index) {
+	//uint8_t index;
 	//uint8_t* p_rom_index;
 
-	if(!p_rom_array  || !dt) {
+	if(index>=MAX_TEMP_DEV_ON_THE_BUS  || !dt) {
 		return 0.0;
 	}
 
+	if (DT_Lut[index] != 0xFF) {
+		return dt->fixpoint_temp[DT_Lut[index]];
+	}
+
+	/*
 	for (index=0; index<dt->devicesCount;index++){
 		if (memcmp(p_rom_array, (uint8_t*)dt->id[index], 8)==0){
 			return dt->fixpoint_temp[index];
 		}
 	}
-
+*/
 	return 0.0;
 }
 

@@ -258,7 +258,7 @@ uint8_t prepare_BMS_CellData(uint8_t cells)
 		bms_cell_data[cell_counter].cell_resistance = neey_ctrl.cell_data[cell_counter].resistance;
 		//		bms_cell_data[cell_counter].cell_temperature = Temp[cell_counter];
 		//bms_cell_data[cell_counter].cell_temperature = (int16_t)(temperatures[cell_counter]*100);
-		bms_cell_data[cell_counter].cell_temperature = (int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[cell_counter]);
+		bms_cell_data[cell_counter].cell_temperature = (int16_t)getTemperatureByROM_Celsius(&dt, cell_counter);
 
 		//bms_cell_data[cell_counter].cell_flags = neey_ctrl.cell_data[cell_counter].flag;
 	}
@@ -293,7 +293,7 @@ uint8_t prepare_BMS_BLKData()
 	bms_blk_data3.flags_ch_number=3;
 	bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
 	bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
-	bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[22]);
+	bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, 22);
 
 	neey_ctrl.data_lock = 0;
 	dt.data_lock = 0;
