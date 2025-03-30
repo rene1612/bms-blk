@@ -272,28 +272,41 @@ uint8_t prepare_BMS_CellData(uint8_t cells)
 /* prepare_BMS_BLKData -------------------------------------------------------------*/
 /*    Prepare Block-Data for CAN-Transmission to EMS                             */
 /*----------------------------------------------------------------------------*/
+uint8_t prepare_BMS_BLKData(uint8_t blk)
 uint8_t prepare_BMS_BLKData()
 {
-	if (neey_ctrl.data_lock  || dt.data_lock)
+	if (neey_ctrl.data_lock || dt.data_lock)
 		return 0;
 
 	neey_ctrl.data_lock = 1;
 	dt.data_lock = 1;
 
-	bms_blk_data1.bms_data_type=BMS_GET_BLK_DATA_CMD;
-	bms_blk_data1.flags_ch_number=1;
-	bms_blk_data1.amt_voltage=neey_ctrl.neey_dev_data.AmtVol;
+	if (blk & 0x01){
+		bms_blk_data1.bms_data_type=BMS_GET_BLK_DATA_CMD;
+		bms_blk_data1.flags_ch_number=1;
+		bms_blk_data1.amt_voltage=neey_ctrl.neey_dev_data.AmtVol;
+	}else {
+		bms_blk_data1.bms_data_type=0;
+	}
 
-	bms_blk_data2.bms_data_type=BMS_GET_BLK_DATA_CMD;
-	bms_blk_data2.flags_ch_number=2;
-	bms_blk_data2.ave_voltage=neey_ctrl.neey_dev_data.AveVol;
-	bms_blk_data2.div_voltage=neey_ctrl.neey_dev_data.DiffVol;
+	if (blk & 0x02){
+		bms_blk_data2.bms_data_type=BMS_GET_BLK_DATA_CMD;
+		bms_blk_data2.flags_ch_number=2;
+		bms_blk_data2.ave_voltage=neey_ctrl.neey_dev_data.AveVol;
+		bms_blk_data2.div_voltage=neey_ctrl.neey_dev_data.DiffVol;
+	}else {
+		bms_blk_data2.bms_data_type=0;
+	}
 
-	bms_blk_data3.bms_data_type=BMS_GET_BLK_DATA_CMD;
-	bms_blk_data3.flags_ch_number=3;
-	bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
-	bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
-	bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, 22);
+	if (blk & 0x04){
+		bms_blk_data3.bms_data_type=BMS_GET_BLK_DATA_CMD;
+		bms_blk_data3.flags_ch_number=3;
+		bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
+		bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
+		bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[22]);
+	}else {
+		bms_blk_data3.bms_data_type=0;
+	}
 
 	neey_ctrl.data_lock = 0;
 	dt.data_lock = 0;
@@ -309,7 +322,7 @@ uint8_t prepare_BMS_BLKData()
 /*----------------------------------------------------------------------------*/
 uint8_t	process_CAN(void)
 {
-	uint8_t len, cell;
+	uint8_t len, blks_to_send, send_blk_data, cell;
 	//int16_t temperature;
 	uint16_t sys_reg, max_sys_reg_size;
 	uint8_t* p_sys_reg_offset;
@@ -324,7 +337,7 @@ uint8_t	process_CAN(void)
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_CELL_DATA;
 			}
 
-			if (prepare_BMS_BLKData()) {
+			if (prepare_BMS_BLKData(0xFF)) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_BLK_DATA;
 			}
 
@@ -332,6 +345,7 @@ uint8_t	process_CAN(void)
 
 		can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_NEEY_DATA;
 	}
+
 
 	/* PROCESS_CAN_SEND_NEW_CELL_DATA --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_CELL_DATA) {
@@ -355,36 +369,59 @@ uint8_t	process_CAN(void)
 		}
 	}
 
+
 	/* PROCESS_CAN_SEND_NEW_BLK_DATA --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_SEND_NEW_BLK_DATA) {
 		if (!HAL_CAN_IsTxMessagePending(&hcan, TxMailbox)) {
 
+			send_blk_data=0;
+
 			if(current_blk_data_2_send==0){
-				TxHeader.DLC=sizeof(_BMS_BLK_DATA1);
-				memcpy(CanTxData, (uint8_t*)&bms_blk_data1,sizeof(_BMS_BLK_DATA1));
-			}
-			else if (current_blk_data_2_send==1){
-				TxHeader.DLC=sizeof(_BMS_BLK_DATA2);
-				memcpy(CanTxData, (uint8_t*)&bms_blk_data2,sizeof(_BMS_BLK_DATA2));
-			}
-			else if (current_blk_data_2_send==2){
-				TxHeader.DLC=sizeof(_BMS_BLK_DATA3);
-				memcpy(CanTxData, (uint8_t*)&bms_blk_data3,sizeof(_BMS_BLK_DATA3));
+				if (bms_blk_data1.bms_data_type){
+					TxHeader.DLC=sizeof(_BMS_BLK_DATA1);
+					memcpy(CanTxData, (uint8_t*)&bms_blk_data1,sizeof(_BMS_BLK_DATA1));
+					send_blk_data = 1;
+				}else {
+					current_blk_data_2_send++;
+				}
 			}
 
-			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK) {
-				Error_Handler ();
-			}
-			else {
-				if (++current_blk_data_2_send>=3){
-					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_BLK_DATA;
+			if (current_blk_data_2_send==1){
+				if (bms_blk_data2.bms_data_type){
+					TxHeader.DLC=sizeof(_BMS_BLK_DATA2);
+					memcpy(CanTxData, (uint8_t*)&bms_blk_data2,sizeof(_BMS_BLK_DATA2));
+					send_blk_data = 1;
+				}else {
+					current_blk_data_2_send++;
 				}
-				set_signal_led(BLUE_LED, LED_200MS_FLASH);
+			}
+
+			if (current_blk_data_2_send==2){
+				if (bms_blk_data3.bms_data_type){
+					TxHeader.DLC=sizeof(_BMS_BLK_DATA3);
+					memcpy(CanTxData, (uint8_t*)&bms_blk_data3,sizeof(_BMS_BLK_DATA3));
+					send_blk_data = 1;
+				}
+			}
+
+			if (send_blk_data) {
+				if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, CanTxData, &TxMailbox) != HAL_OK) {
+					Error_Handler ();
+				}
+				else {
+					if (++current_blk_data_2_send>=3){
+						can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_BLK_DATA;
+					}
+					set_signal_led(BLUE_LED, LED_200MS_FLASH);
+				}
+			}else {
+				can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_BLK_DATA;
 			}
 		}else {
 			return can_task_scheduler;
 		}
 	}
+
 
 	/* PROCESS_CAN_ON_BRDC_MSG --------------------------------------------------------*/
 	if (can_task_scheduler & PROCESS_CAN_ON_BRDC_MSG)
@@ -483,6 +520,7 @@ uint8_t	process_CAN(void)
 		case SYS_WRITE_REG_CMD:
 			//printf("WRITE_REG_CMD\n");
 			sys_reg = CanRxData[1];
+			//sys_reg = (CanRxData[1]<<7)+CanRxData[2];
 
 			if (sys_reg < sizeof(main_regs)) {
 				*(((uint8_t *)&main_regs)+sys_reg) = CanRxData[2];
@@ -613,7 +651,12 @@ uint8_t	process_CAN(void)
 
 		/*****************************************************/
 		case BMS_GET_BLK_DATA_CMD:
-			if (prepare_BMS_BLKData()) {
+			if(RxHeader.DLC>=2){
+				blks_to_send=CanRxData[1];
+			}else {
+				blks_to_send=0xFF;
+			}
+			if (prepare_BMS_BLKData(blks_to_send)) {
 				can_task_scheduler |= PROCESS_CAN_SEND_NEW_BLK_DATA;
 			}
 			else {

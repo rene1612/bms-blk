@@ -246,7 +246,7 @@ typedef struct
 
   float 	DiffVol;							/*!< diff-voltage max cell volt. - min cell volt.  */
 
-  float		Unknown1;							/*!< dont konw  */
+  float		Unknown1;							/*!< dont know  */
 
   float 	BalCurrent;							/*!< current balance current  */
 
