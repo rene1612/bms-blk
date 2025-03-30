@@ -273,7 +273,6 @@ uint8_t prepare_BMS_CellData(uint8_t cells)
 /*    Prepare Block-Data for CAN-Transmission to EMS                             */
 /*----------------------------------------------------------------------------*/
 uint8_t prepare_BMS_BLKData(uint8_t blk)
-uint8_t prepare_BMS_BLKData()
 {
 	if (neey_ctrl.data_lock || dt.data_lock)
 		return 0;
@@ -357,7 +356,6 @@ uint8_t	process_CAN(void)
 				Error_Handler ();
 			}
 			else {
-				//if (++current_cell_2_send >= neey_ctrl.neey_dev_info.CellCount) {
 				if (++current_cell_2_send >= max_cells_2_send) {
 					can_task_scheduler &= ~PROCESS_CAN_SEND_NEW_CELL_DATA;
 				}
