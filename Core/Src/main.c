@@ -47,7 +47,7 @@
 #else
 	#define __GIT_SHORT_HASH__ 0x0000000
 	#define __GIT_BRANCH__ "none"
-	#define __GIT_DATE_STR__ "2024-11-25"
+	#define __GIT_DATE_STR__ "2025-04-03"
 	#define __GIT_DATE_UT__ 1732571756
 #endif
 
@@ -188,7 +188,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		1,							//config_at_start
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt_01_05.txt"
+		#include "temp_sensor_lt_02_07.txt"
 	},
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"

@@ -145,23 +145,22 @@ uint8_t createTemp_Lut(DallasTemperatureData* dt) {
 	for (lut_index=0; lut_index < (dt->devicesCount - 1); lut_index++) {
 
 		lut_accu_index += (lut_index+1);
+		DT_Lut[lut_index] = 0xFF;
 
 		//step through the rom-code array of the sensors found on the bus and search for a match
 		for (index=0; index<dt->devicesCount; index++) {
 
-			if (memcmp((uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table+lut_index, (uint8_t*)dt->id[index], 8) == 0) {
+			if (memcmp((uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[lut_index], (uint8_t*)dt->id[index], 8) == 0) {
 				DT_Lut[lut_index] = index;
-				accu_index += (index+1);
+				accu_index += index;
 				match_count++;
-			}
-			else {
-				DT_Lut[lut_index] = 0xFF;
+				break;
 			}
 		}
 	}
 
 	//set the index for the heatsink temp sensor to last index in lut
-	DT_Lut[lut_index] = (lut_accu_index-accu_index-1);
+	DT_Lut[lut_index++] = lut_accu_index-accu_index;
 
 	//fehlerbehandlung
 
