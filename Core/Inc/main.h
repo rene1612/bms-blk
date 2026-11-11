@@ -43,7 +43,9 @@ extern "C" {
 #endif
 
 //
-#define __BRD_ID__						0x05
+#ifndef __BRD_ID__
+	#define __BRD_ID__						0x07
+#endif
 
 #ifndef __DEV_ID__
 	#define __DEV_ID__					(__BOARD_TYPE__ + __BRD_ID__)
@@ -230,6 +232,7 @@ typedef struct
 	 _MIN_MAX			blk_voltage;
 	 _MIN_MAX			blk_voltage_diff;
 	 _MIN_MAX			heatsink_temperature;
+	 //ToDo	NeeyTemperature ???
 }_ALERT_THRESHOLDS;
 
  /**

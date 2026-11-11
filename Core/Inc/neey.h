@@ -45,10 +45,10 @@ extern "C" {
 
 
 typedef enum {
-	info =		0x01,
-	data =		0x02,
-	param =		0x04,
-	cmd	=		0x05,
+	info =		NEEY_PACKET_TYPE_info,
+	data =		NEEY_PACKET_TYPE_data,
+	param =		NEEY_PACKET_TYPE_param,
+	cmd	=		NEEY_PACKET_TYPE_cmd,
 }_NEEY_PKT_TYPE;
 
 /**
@@ -63,6 +63,19 @@ typedef enum {
 #define	NEEY_SUB_TYPE_BatCap 			0x16
 #define	NEEY_SUB_TYPE_EquVol 			0x17
 #define	NEEY_SUB_TYPE_run 				0x0D
+
+
+typedef enum {
+	cellcount =			NEEY_SUB_TYPE_cellcount,
+	StartVol =			NEEY_SUB_TYPE_StartVol,
+	MaxBalCurrent =		NEEY_SUB_TYPE_MaxBalCurrent,
+	SleepVol	=		NEEY_SUB_TYPE_SleepVol,
+	Buzzer =			NEEY_SUB_TYPE_Buzzer,
+	BatType =			NEEY_SUB_TYPE_BatType,
+	BatCap =			NEEY_SUB_TYPE_BatCap,
+	EquVol	=			NEEY_SUB_TYPE_EquVol,
+	run	=				NEEY_SUB_TYPE_run,
+}_NEEY_PKT_SUB_TYPE;
 
 
 /**
@@ -187,7 +200,7 @@ typedef struct
   */
 typedef struct
 {
-	_NEEY_RX_TRANSFER 		cur_rx_transfer;    					/*!< Start of the data packet, always 0x55AA */
+	_NEEY_RX_TRANSFER 		cur_rx_transfer;    					/*!<  */
 	_NEEY_INFO				neey_dev_info;
 	_NEEY_CELL_DATA			cell_data[NEEY_CHANNEL_COUNT];
 	_NEEY_DEV_DATA			neey_dev_data;
@@ -354,50 +367,6 @@ typedef struct
 #pragma pack(pop)
 
 
-/**
-  * @brief  NEEY Configuration Structure definition
-  */
-typedef struct
-{
-  uint32_t AsynchPrediv;    /*!< Specifies the RTC Asynchronous Predivider value.
-                                 This parameter must be a number between Min_Data = 0x00 and Max_Data = 0xFFFFF  or RTC_AUTO_1_SECOND
-                                 If RTC_AUTO_1_SECOND is selected, AsynchPrediv will be set automatically to get 1sec timebase */
-
-  uint32_t OutPut;          /*!< Specifies which signal will be routed to the RTC Tamper pin.
-                                 This parameter can be a value of @ref RTC_output_source_to_output_on_the_Tamper_pin */
-
-} NEEY_InitTypeDef;
-
-
-/**
-  * @brief  Time Handle Structure definition
-  */
-typedef struct __NEEY_HandleTypeDef
-{
-  //NEEY_TypeDef                 *Instance;  /*!< Register base address    */
-
-  NEEY_InitTypeDef             Init;       /*!< RTC required parameters  */
-
-  //RTC_DateTypeDef             DateToUpdate;       /*!< Current date set by user and updated automatically  */
-
-  //HAL_LockTypeDef             Lock;       /*!< RTC locking object       */
-
-  //__IO HAL_RTCStateTypeDef    State;      /*!< Time communication state */
-
-#if (USE_HAL_NEEY_REGISTER_CALLBACKS == 1)
-  void (* AlarmAEventCallback)(struct __RTC_HandleTypeDef *hrtc);           /*!< Neey Alarm A Event callback         */
-
-  void (* Tamper1EventCallback)(struct __RTC_HandleTypeDef *hrtc);          /*!< Neey Tamper 1 Event callback        */
-
-  void (* MspInitCallback)(struct __RTC_HandleTypeDef *hrtc);               /*!< Neey Msp Init callback              */
-
-  void (* MspDeInitCallback)(struct __RTC_HandleTypeDef *hrtc);             /*!< Neey Msp DeInit callback            */
-
-#endif /* (USE_HAL_NEEY_REGISTER_CALLBACKS) */
-
-} NEEY_HandleTypeDef;
-
-extern NEEY_HandleTypeDef hneey;
 
 extern _NEEY_CTRL neey_ctrl;
 

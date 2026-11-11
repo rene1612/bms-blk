@@ -28,8 +28,6 @@
 #define UART2_RX_BUF_SIZE	(sizeof(_NEEY_RecDataTypeDef)+2)
 
 
-NEEY_HandleTypeDef hneey;
-
 uint8_t neey_task_scheduler;
 
 //UART_HandleTypeDef huart2;
@@ -42,7 +40,6 @@ const char ATString[]={'A','T',0x0D,0x0A,0x00};
 const char ATStringOK[]={'O','K',0x0D,0x0A,0x00};
 
 _NEEY_CTRL neey_ctrl;
-
 
 
 
@@ -85,7 +82,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					break;
 
 				case param:
-					if (Size == sizeof(_NEEY_RecDevParmTypeDef)) {//so we have an parm packet?
+					if (Size == sizeof(_NEEY_RecDevParmTypeDef)) {//so we have an param packet?
 					  main_task_scheduler |= PROCESS_NEEY;
 					  neey_task_scheduler |= PROCESS_NEEY_PARAM;
 					}else
@@ -155,6 +152,7 @@ void MX_NEEY_Init(void)
 	neey_task_scheduler = PROCESS_NEEY_NO_TASK;
 
 
+	//prepare to receive data from neey
 	neey_start_DMA();
 
 	//printf(ConnectString);
@@ -163,47 +161,15 @@ void MX_NEEY_Init(void)
 //	HAL_UART_Transmit(&huart2, ATStringOK, strlen(ATStringOK), 1000);
 //	HAL_Delay(20);
 
+	//instead of neey ble module we send a CONNECT string to the neey mcu to signal that we now have a transparent seriell connnection
 	HAL_UART_Transmit(&huart2, (uint8_t *)ConnectString, strlen(ConnectString), 1000);
 	HAL_Delay(20);
 
 	send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_info, 0, init_buffer , 10);
 	//HAL_Delay(100);
 
-
-//	hneey.Instance = NEEY;
-//hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
-//hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
-//if (HAL_RTC_Init(&hrtc) != HAL_OK)
-//	{
-//	  Error_Handler();
-//	}
-
 }
 
-
-void HAL_NEEY_MspInit(NEEY_HandleTypeDef* neeyHandle)
-{
-
- // if(neeyHandle->Instance==NEEY)
-  {
-//    HAL_PWR_EnableBkUpAccess();
-    /* Enable BKP CLK enable for backup registers */
-//    __HAL_RCC_BKP_CLK_ENABLE();
-    /* RTC clock enable */
-//    __HAL_RCC_RTC_ENABLE();
-  }
-}
-
-
-void HAL_NEEY_MspDeInit(NEEY_HandleTypeDef* neeyHandle)
-{
-
- // if(neeyHandle->Instance==NEEY)
-  {
-    /* Peripheral clock disable */
-//    __HAL_RCC_RTC_DISABLE();
-  }
-}
 
 
 //*****************************************************************************
@@ -355,7 +321,7 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 
 			neey_ctrl.cell_data[i].voltage =(uint16_t)(p_rec_data_pkt->CellVoltage[i]*1000);
 			neey_ctrl.cell_data[i].resistance =(uint16_t)(p_rec_data_pkt->CellValue[i]*1000);
-			neey_ctrl.cell_data[i].flag = 0;
+			neey_ctrl.cell_data[i].flag = 0;	//ToDo
 
 			//check voltage if needed
 			if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_CELL_VOLTAGE)){
@@ -492,6 +458,9 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		// get the other data that are unknown by now
 		// f.e. the cells that are in balancing process
 
+		 //ToDo	NeeyTemperature ???
+
+
 		neey_ctrl.data_pkt_counter++;
 
 		neey_ctrl.data_lock = 0;
@@ -589,7 +558,7 @@ uint8_t	check_param_pkt_NEEY(void* p_pkt_buf) {
 //!
 //! \fn void process_NEEY(void)
 //!
-//! NOTE: is called on falling edge of drdx-Pin, when new adc-data are availabe
+//! NOTE: is called
 //!
 //! \return neey_task_scheduler (0 for no pending tasks)
 //

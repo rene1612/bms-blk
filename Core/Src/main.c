@@ -188,7 +188,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		1,							//config_at_start
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt_02_07.txt"
+		#include "temp_sensor_lt_01_07.txt"
 	},
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
@@ -230,8 +230,8 @@ const _DEV_CONFIG_REGS* pDevConfig = (const _DEV_CONFIG_REGS*)DEV_CONFIG_FL_ADDR
  */
 _MAIN_REGS main_regs = {
 	//!<RW CTRL Ein-/Ausschalten usw.  (1 BYTE )
-	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALERT) | (1<<REG_CTRL_ENABLE_PB) |
-			(1<<REG_CTRL_ENABLE_OW) | (1<<REG_CTRL_ENABLE_NEEY) |  (1<<REG_CTRL_ENABLE_WS2815) ),
+	((1<<REG_CTRL_ACTIVATE) | (1<<REG_CTRL_CRIT_ALERT) | (0<<REG_CTRL_ENABLE_PB) |
+		(1<<REG_CTRL_ENABLE_OW) | (1<<REG_CTRL_ENABLE_NEEY) |  (0<<REG_CTRL_ENABLE_WS2815) ),
 
 	SYS_OK,
 	ERR_NONE,
@@ -275,7 +275,7 @@ int _write(int file, char *ptr, int len)
 _LED_SIGNAL_STATE	led_signal_state={1,SLOW_FLASH,OFF,OFF};
 
 /****************************************************************************
-  * @brief  The application entry point.
+  * @brief  set new state for the signaling leds
   * @retval int
   */
 void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
@@ -296,7 +296,7 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
 
 
 /****************************************************************************
-  * @brief  The application entry point.
+  * @brief  task function to update led-signaling
   * @retval int
   */
 void signal_led_task(void)
@@ -391,12 +391,12 @@ int main(void)
 		Error_Handler();
 	}
 
-	//
+	//init passive balancer if enabled
 	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_PB)) {
 		PBalancer_init();
 	}
 
-	//start one-wire temperature sensors
+	//start one-wire temperature sensors if enabled
 	if (main_regs.ctrl & (1<<REG_CTRL_ENABLE_OW)) {
 		OW_Init(&ow, &huart3);
 		DT_SetOneWire(&dt, &ow);
@@ -409,7 +409,9 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim4);
 
 	//start all neey releated stuff
-	MX_NEEY_Init();
+	if(main_regs.ctrl & (1<<REG_CTRL_ENABLE_NEEY)) {
+		MX_NEEY_Init();
+	}
 
 #ifdef __WS2812B__
 	//ws2815-led-monitor
@@ -429,8 +431,12 @@ int main(void)
 
 	  /* PROCESS_NEEY  ------------------------------------------------------------*/
 	  if (main_task_scheduler & PROCESS_NEEY) {
-		  if (!process_NEEY()){
-			  //check_AllertThrescholds();
+		  if(main_regs.ctrl & (1<<REG_CTRL_ENABLE_NEEY)) {
+			  if (!process_NEEY()){
+				  //check_AllertThrescholds();
+				  main_task_scheduler &= ~PROCESS_NEEY;
+			  }
+		  }else {
 			  main_task_scheduler &= ~PROCESS_NEEY;
 		  }
 	  }
