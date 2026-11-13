@@ -121,6 +121,9 @@ extern uint8_t alive_timer;
 #define REG_ALERT_BLK_VOLTAGE		6
 #define REG_ALERT_BLK_DIFF_VOLTAGE	7
 
+#define REG_ALERT_HEAT_SINK_TEMP	0
+#define REG_ALERT_NEEY				1
+#define REG_ALERT_NEEY_DATA			2
 
 
  /**
@@ -154,6 +157,8 @@ typedef enum
  ERR_NEEY=				0x23,	//!<Zustand Fehler  (einmal kurzes blinken)
  ERR_BLK_VOLTAGE=		0x42,	//!<Zustand Fehler  (einmal kurzes blinken)
  ERR_BLK_VOLTAGE_DIFF=	0x43,	//!<Zustand Fehler  (einmal kurzes blinken)
+ ERR_NEEY_ALARM_INFO,
+ ERR_NEEY_TEMPERATURE,
 }_SYS_ERR_CODES;
 
 
@@ -214,6 +219,7 @@ typedef enum
  	uint16_t	cell_cpacity;
  	uint8_t		data_send_intervall;	//send intervall in 500ms steps
  	uint8_t		config_at_start;		//send config to neey at start
+ 	char		ble_name[10];
 } _NEEY_CONFIG_DATA;
 
 

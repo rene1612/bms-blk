@@ -109,7 +109,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 
 
 /* NEEY helper function */
-void send_to_neey(uint16_t addr, _NEEY_PKT_TYPE pkt_type, uint8_t sub_type, uint8_t* p_data, uint8_t len)
+void send_to_neey(uint8_t addr, _NEEY_PKT_TYPE pkt_type, uint8_t sub_type, uint8_t* p_data, uint8_t len)
 {
 	_NEEY_SendDataTypeDef neey_data_pkt;
 	uint8_t cs=0;
@@ -117,11 +117,13 @@ void send_to_neey(uint16_t addr, _NEEY_PKT_TYPE pkt_type, uint8_t sub_type, uint
 	uint8_t* p_pkt = (uint8_t*)&neey_data_pkt;
 
 	neey_data_pkt.PacketStart = NEEY_PACKET_START_TX;
+	neey_data_pkt.Address = addr; //adresse ist immer 0x11
+
 	if (pkt_type==NEEY_PACKET_TYPE_cmd) {
-		neey_data_pkt.Address = NEEY_ADDR; //adresse ist immer 0x1100???
+		neey_data_pkt.RW_Flag = 0x00; //
 	}
 	else {
-		neey_data_pkt.Address = NEEY_ADDR + (1<<8); //adresse ist immer 0x1101???
+		neey_data_pkt.RW_Flag = 0x01; //
 	}
 	neey_data_pkt.PacketType = pkt_type;
 	neey_data_pkt.PacketSubType = sub_type;
@@ -258,6 +260,12 @@ void check_and_send_config_data_NEEY(void) {
 			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_EquVol, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.equalization_voltage , sizeof(main_regs.cfg_regs.neey_cfg_data.equalization_voltage));
 			HAL_Delay(200);
 		}
+
+		if (strlen(neey_ctrl.neey_dev_info.BLE_Name) == 0 || strcmp(neey_ctrl.neey_dev_info.BLE_Name, main_regs.cfg_regs.neey_cfg_data.ble_name) != 0) {
+			send_to_neey(NEEY_ADDR, NEEY_PACKET_TYPE_cmd, NEEY_SUB_TYPE_BLE_Name, (uint8_t*)&main_regs.cfg_regs.neey_cfg_data.ble_name , sizeof(main_regs.cfg_regs.neey_cfg_data.ble_name));
+			HAL_Delay(200);
+		}
+
 	}
 
 	//timeout???
@@ -391,8 +399,23 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		neey_ctrl.neey_dev_data.AmtVol = (uint32_t)(p_rec_data_pkt->AmtVol*1000);
 		neey_ctrl.neey_dev_data.AveVol = (uint16_t)(p_rec_data_pkt->AveVol*1000);
 		neey_ctrl.neey_dev_data.DiffVol = (uint16_t)(p_rec_data_pkt->DiffVol*1000);
-		neey_ctrl.neey_dev_data.Temperatur = (int16_t)(p_rec_data_pkt->Temperatur1*100);
+		neey_ctrl.neey_dev_data.Temperatur1 = (int16_t)(p_rec_data_pkt->Temperatur1*100);
+		neey_ctrl.neey_dev_data.Temperatur2 = (int16_t)(p_rec_data_pkt->Temperatur2*100);
 		neey_ctrl.neey_dev_data.BalCurrent = (int16_t)(p_rec_data_pkt->BalCurrent*1000);
+		neey_ctrl.neey_dev_data.running_state = (int8_t)(p_rec_data_pkt->DevRunningStatusFlag);
+		neey_ctrl.neey_dev_data.highest_voltage_cell_nr = (int8_t)(p_rec_data_pkt->HighestCellvoltageNumber);
+		neey_ctrl.neey_dev_data.lowest_voltage_cell_nr = (int8_t)(p_rec_data_pkt->MinCellvoltageNumber);
+		neey_ctrl.neey_dev_data.RunTime = (uint32_t)(p_rec_data_pkt->RunTime);
+		memcpy(neey_ctrl.neey_dev_data.AlarmInfo, p_rec_data_pkt->AlarmInfo, sizeof(p_rec_data_pkt->AlarmInfo));
+
+
+		if(neey_ctrl.neey_dev_data.highest_voltage_cell_nr <= NEEY_CHANNEL_COUNT) {
+			neey_ctrl.cell_data[i].flag |= NEEY_CELL_HIGHEST_VOLTAGE;
+		}
+
+		if(neey_ctrl.neey_dev_data.lowest_voltage_cell_nr <= NEEY_CHANNEL_COUNT) {
+			neey_ctrl.cell_data[i].flag |= NEEY_CELL_LOWEST_VOLTAGE;
+		}
 
 		//check blk voltage if needed
 		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_BLK_VOLTAGE)){
@@ -457,6 +480,39 @@ uint8_t	check_data_pkt_NEEY(void* p_pkt_buf) {
 		//todo
 		// get the other data that are unknown by now
 		// f.e. the cells that are in balancing process
+		//check diff voltage if needed
+		if(main_regs.cfg_regs.alert_mask & (1<<REG_ALERT_NEEY)){
+
+			for(i=0; i < sizeof(neey_ctrl.neey_dev_data.AlarmInfo); i++) {
+
+				if(neey_ctrl.neey_dev_data.AlarmInfo[0] || neey_ctrl.neey_dev_data.AlarmInfo[1] || neey_ctrl.neey_dev_data.AlarmInfo[2]){
+					//:Battery detection Allert
+
+					if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_NEEY)){
+						//send and do the cirtical allert things
+						alert_msg[0]=ERR_NEEY;
+						alert_msg[1]=ERR_NEEY_ALARM_INFO;
+						alert_msg[2]=i;
+						alert_msg[3]=neey_ctrl.neey_dev_data.AlarmInfo[i];
+						DoAlert(alert_msg,4);
+					}
+				}
+			}
+
+			if(neey_ctrl.neey_dev_data.running_state == temperature_is_too_high || neey_ctrl.neey_dev_data.running_state == temperature_is_too_high_EQUstop){
+				//:neey temperature Allert
+
+				if(main_regs.cfg_regs.crit_alert_mask & (1<<REG_ALERT_NEEY)){
+					//send and do the cirtical allert things
+					alert_msg[0]=ERR_NEEY;
+					alert_msg[1]=ERR_NEEY_TEMPERATURE;
+					alert_msg[2]=neey_ctrl.neey_dev_data.running_state;
+					DoAlert(alert_msg,3);
+				}
+			}
+
+
+		}
 
 		 //ToDo	NeeyTemperature ???
 

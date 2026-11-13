@@ -301,7 +301,7 @@ uint8_t prepare_BMS_BLKData(uint8_t blk)
 		bms_blk_data3.bms_data_type=BMS_GET_BLK_DATA_CMD;
 		bms_blk_data3.flags_ch_number=3;
 		bms_blk_data3.bal_current=neey_ctrl.neey_dev_data.BalCurrent;
-		bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur;
+		bms_blk_data3.neey_temperatur=neey_ctrl.neey_dev_data.Temperatur1;
 		//bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, (uint8_t*)main_regs.cfg_regs.temp_sensor_lookup_table[22]);
 		bms_blk_data3.heat_sink_temperatur=(int16_t)getTemperatureByROM_Celsius(&dt, 22);
 	}else {

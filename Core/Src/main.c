@@ -67,10 +67,10 @@
 					 |   1 KB      |	 /		(Dev-Addr->Can-ID, can-baudrate, Boardtype, Boardversion ...)
 					 | data        |	/		 @see dev_config_regs
 		0x801F800 -> +-------------+
-					 | 0x801F000   |	\
+					 | 0x801E800   |	\
 					 |    to       |	 \
 					 | 0x801F7FF   |	  |- Applicaton Configdata
-					 |   2 KB      |	 /		(Tempsensor ID-Lookup table, Calibration-Data, Thresholds, ...)
+					 |   4 KB      |	 /		(Tempsensor ID-Lookup table, Calibration-Data, Thresholds, ...)
 					 | data        |	/		 @see app_cfg_regs
 		0x801F000 -> +-------------+
 					 |             |	\
@@ -79,8 +79,8 @@
 					 |             |	  |
 					 | 0x8008000   |	  |
 					 |    to       |	  |
-					 | 0x801EFFF   |	  |- Contain the application software (this project)
-					 |   92 KB     |	  |
+					 | 0x801E7FF   |	  |- Contain the application software (this project)
+					 |   90 KB     |	  |
 					 | application |	  |
 					 |             |	  |
 					 |             |	  |
@@ -186,6 +186,7 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		280,						//cell_cpacity
 		2,							//send intervall in 500ms steps
 		1,							//config_at_start
+		"B1_BLK7",
 	},
 	{	//temp_sensor_lookup_table
 		#include "temp_sensor_lt_01_07.txt"
