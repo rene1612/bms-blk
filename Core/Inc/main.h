@@ -197,9 +197,9 @@ typedef enum
 	 const char manufacturers[16];
 	 const char cell_types[8];
 	 const char model_codes[8];
-	 const char capacity_ah[6];
-	 const char energy_wh[6];
-	 const char production_date[12];
+	 float 		capacity_ah;
+	 float 		energy_wh;
+	 const char production_date[10];
 	 const char original_qr_content[24];	//
  }_LF280K_QR_INFO_STRUCT;
 
