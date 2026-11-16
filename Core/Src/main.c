@@ -67,10 +67,10 @@
 					 |   1 KB      |	 /		(Dev-Addr->Can-ID, can-baudrate, Boardtype, Boardversion ...)
 					 | data        |	/		 @see dev_config_regs
 		0x801F800 -> +-------------+
-					 | 0x801E800   |	\
+					 | 0x801F000   |	\
 					 |    to       |	 \
 					 | 0x801F7FF   |	  |- Applicaton Configdata
-					 |   4 KB      |	 /		(Tempsensor ID-Lookup table, Calibration-Data, Thresholds, ...)
+					 |   2 KB      |	 /		(Tempsensor ID-Lookup table, Calibration-Data, Thresholds, ...)
 					 | data        |	/		 @see app_cfg_regs
 		0x801F000 -> +-------------+
 					 |             |	\
@@ -80,7 +80,7 @@
 					 | 0x8008000   |	  |
 					 |    to       |	  |
 					 | 0x801E7FF   |	  |- Contain the application software (this project)
-					 |   90 KB     |	  |
+					 |   92 KB     |	  |
 					 | application |	  |
 					 |             |	  |
 					 |             |	  |
