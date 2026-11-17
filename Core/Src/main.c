@@ -657,7 +657,7 @@ void AlertHandler(void)
 void DoAlert(uint8_t* p_msg, uint8_t len)
 {
 
-	if (main_regs.ctrl & (1<<REG_CTRL_CRIT_ALERT))
+	if (main_regs.ctrl & (1<<REG_CTRL_CRIT_ALERT) && p_msg[0] )
 	{
 		can_send_trip_msg();
 
@@ -665,10 +665,10 @@ void DoAlert(uint8_t* p_msg, uint8_t len)
 	}
 
 	//send Something?
-	can_send_allert_msg(p_msg, len);
+	can_send_allert_msg(p_msg+1, len);
 
 
-	main_regs.sys_err=(_SYS_ERR_CODES)p_msg[0];
+	main_regs.sys_err=(_SYS_ERR_CODES)p_msg[1];
 	main_regs.sys_state=SYS_ERROR;
 
 }

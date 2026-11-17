@@ -124,7 +124,7 @@ typedef enum {
 #define PROCESS_NEEY_ALIVE				0x10
 #define PROCESS_NEEY_INFO				0x20
 #define PROCESS_NEEY_PARAM				0x40
-#define PROCESS_NEEY_TIMER				0x80
+#define PROCESS_NEEY_UNKNOWN			0x80
 
 
 typedef enum
@@ -132,6 +132,7 @@ typedef enum
 	NO_NEEY,
 	AT_MODE,
 	INIT_MODE,
+	REQUEST_RUN_MODE,
 	RUN_MODE,
 	NEEY_MODE_END
 }_NEEY_STATE;
@@ -235,6 +236,8 @@ typedef struct
 	_NEEY_STATE				neey_state;
 	uint8_t					data_pkt_counter;
 	uint8_t					last_checked_data_pkt_counter;
+	uint8_t					current_neey_packet_serial_number;
+	uint8_t					last_neey_packet_serial_number;
 	uint8_t					data_lock;
 } _NEEY_CTRL;
 

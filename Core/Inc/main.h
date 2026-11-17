@@ -44,7 +44,7 @@ extern "C" {
 
 //
 #ifndef __BRD_ID__
-	#define __BRD_ID__						0x07
+	#define __BRD_ID__						0x01
 #endif
 
 #ifndef __DEV_ID__

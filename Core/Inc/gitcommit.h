@@ -1,5 +1,5 @@
 #define GIT_INFO_PRESENT
-#define __GIT_SHORT_HASH__ 0x8406c2e
+#define __GIT_SHORT_HASH__ 0x09f60ea
 #define __GIT_BRANCH__ "HEAD -> neey_dev, origin/neey_dev"
-#define __GIT_DATE_STR__ "2026-11-13"
-#define __GIT_DATE_UT__ 1794589408
+#define __GIT_DATE_STR__ "2026-11-16"
+#define __GIT_DATE_UT__ 1794849284
