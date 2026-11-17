@@ -91,7 +91,7 @@
 					 | 0x8000000   |	 \
 					 |    to       |	  |
 					 | 0x8007FFF   |	  |- Contain bootloader software
-					 |   32 KB     |	  |		@see CAN_BOOT-Projecz
+					 |   32 KB     |	  |		@see CAN_BOOT-Project
 					 | bootloader  |	 /
 					 |             |	/
 		0x8000000 -> +-------------+
@@ -119,17 +119,14 @@
 
 /* USER CODE BEGIN PV */
 uint8_t main_task_scheduler;
-uint8_t adc_enable_mask;
 uint8_t alive_timer;
 uint16_t timer_10ms;
-
 
 extern UART_HandleTypeDef huart3;
 UartOneWire_HandleTypeDef ow;
 DallasTemperatureData dt;
 
 uint8_t resolution = TEMP_12_BIT;
-
 
 
 //#define __DEBUG__
@@ -175,21 +172,21 @@ __attribute__((__section__(".sw_info"))) const _SW_INFO_REGS sw_info_regs = {
 ////alles was persistend (im Flash) gespeichert werden soll, z.b. Kalibration, ...
 __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_regs = {
 	{	//neey_config_data
-		4.0,						//max_balance_current
+		4.0,							//max_balance_current
 		3.45,						//start_voltage
 		0.005,						//equalization_voltage
 		3.25,						//sleep_voltage
 		22,							//cell_count
 		NEEY_BATTERY_TYPE_LFP,		//cell_type
-		NEEY_BUZZER_TYPE_SINGLE,	//buzzer
+		NEEY_BUZZER_TYPE_SINGLE,		//buzzer
 		0,							//auto_run
-		280,						//cell_cpacity
+		280,							//cell_cpacity
 		2,							//send intervall in 500ms steps
 		1,							//config_at_start
-		"B1_BLK7",
+		"B1_BLK1",
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt_01_07.txt"
+		#include "temp_sensor_lt_01_01.txt"
 	},
 	{	//lf280k_qr_info
  		#include "lf280k_qr.txt"
