@@ -183,13 +183,21 @@ __attribute__((__section__(".app_config"))) const _BMS_BLK_CONFIG_REGS app_cfg_r
 		280,							//cell_cpacity
 		2,							//send intervall in 500ms steps
 		1,							//config_at_start
-		"B1_BLK1",
+		BLE_NAME,
 	},
 	{	//temp_sensor_lookup_table
-		#include "temp_sensor_lt_01_01.txt"
+		#if __has_include(TEMP_SENSOR_LT_FILE)
+			#include TEMP_SENSOR_LT_FILE
+		#else
+			#error"no lut file for temp sensors found"
+		#endif
 	},
 	{	//lf280k_qr_info
- 		#include "lf280k_qr.txt"
+		#if __has_include(LF280K_QR_FILE)
+			#include LF280K_QR_FILE
+		#else
+			#error"no qr file for lf280k found"
+		#endif
 	},
 #if defined (__DEBUG__)
 	((1<<REG_ALERT_HEAT_SINK_TEMP) | (1<<REG_ALERT_NEEY) | (1<<REG_ALERT_NEEY_DATA) |(0<<REG_ALERT_CELL_VOLTAGE) |
@@ -299,7 +307,6 @@ void set_signal_led(uint8_t led, _LED_SIGNAL_MASK mask)
   */
 void signal_led_task(void)
 {
-
 	if(led_signal_state.green_led_mask & led_signal_state.mask) {
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 	}else {
@@ -567,7 +574,6 @@ void SystemClock_Config(void)
 //*****************************************************************************
 uint8_t check_AlertThresholds(void)
 {
-
 	return 0;
 }
 

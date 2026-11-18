@@ -38,6 +38,17 @@ extern "C" {
  #include "OneWire.h"
 #endif
 
+
+/* USER CODE END Includes */
+
+/* Exported types ------------------------------------------------------------*/
+/* USER CODE BEGIN ET */
+extern uint8_t main_task_scheduler;
+extern uint8_t alive_timer;
+/* USER CODE END ET */
+
+/* USER CODE BEGIN Private defines */
+
 #ifndef __BOARD_TYPE__
 	#define __BOARD_TYPE__				BMS_BLK_BOARD
 #endif
@@ -51,6 +62,9 @@ extern "C" {
 	#define __DEV_ID__					(__BOARD_TYPE__ + __BRD_ID__)
 #endif
 
+#ifndef __BAT_NR__
+	#define __BAT_NR__	1
+#endif
 
 #ifndef __BOARD_VERSION__
 	#define __BOARD_VERSION__			(0x0100)
@@ -65,15 +79,113 @@ extern "C" {
 
 #define __ALLERT_DEBUG__
 
-/* USER CODE END Includes */
 
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
-extern uint8_t main_task_scheduler;
-extern uint8_t alive_timer;
-/* USER CODE END ET */
+#define ALIVE_TIMEOUT_10MS		15
+#define APP_CAN_BITRATE			500000UL
 
-/* USER CODE BEGIN Private defines */
+#define __DEV_SIGNATURE__		0x12
+#define __SW_RELEASE__			0x0103
+#define SW_RELEASE_DAY			18
+#define SW_RELEASE_MONTH		11
+#define SW_RELEASE_YEAR			2026
+#define __SW_RELEASE_DATE__		((SW_RELEASE_DAY<<24 ) | (SW_RELEASE_MONTH<<18) | SW_RELEASE_YEAR)
+#define __SW_NAME__				"BMS-BLK-APP"
+#define MAX_LF280K_CELL_COUNT		22
+
+
+#ifndef __BOARD_MF_DATE__
+	#define BOARD_MF_DAY				7
+	#define BOARD_MF_MONTH				9
+	#define BOARD_MF_YEAR				2023
+	#define __BOARD_MF_DATE__			((BOARD_MF_DAY<<24 ) | (BOARD_MF_MONTH<<16) | BOARD_MF_YEAR)
+#endif
+
+
+#if __BAT_NR__ == 1
+	#if __BRD_ID__ == 0x01
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_01.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK1"
+
+	#elif __BRD_ID__ == 0x02
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_02.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK2"
+
+	#elif __BRD_ID__ == 0x03
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_03.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK3"
+
+	#elif __BRD_ID__ == 0x04
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_04.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK4"
+
+	#elif __BRD_ID__ == 0x05
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_05.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK5"
+
+	#elif __BRD_ID__ == 0x06
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_06.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK6"
+
+	#elif __BRD_ID__ == 0x07
+		#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_07.txt"
+		#define LF280K_QR_FILE  "lf280k_qr.txt"
+		#define BLE_NAME	"B1_BLK7"
+
+	#else
+		#error"WRONG __BRD_ID__"
+	#endif
+
+#elif __BAT_NR__ == 2
+#if __BRD_ID__ == 0x01
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_01.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK1"
+
+#elif __BRD_ID__ == 0x02
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_02.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK2"
+
+#elif __BRD_ID__ == 0x03
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_03.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK3"
+
+#elif __BRD_ID__ == 0x04
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_04.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK4"
+
+#elif __BRD_ID__ == 0x05
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_05.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK5"
+
+#elif __BRD_ID__ == 0x06
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_01_06.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK6"
+
+#elif __BRD_ID__ == 0x07
+	#define TEMP_SENSOR_LT_FILE  "temp_sensor_lt_02_07.txt"
+	#define LF280K_QR_FILE  "lf280k_qr.txt"
+	#define BLE_NAME	"B2_BLK7"
+
+#else
+	#error"WRONG __BRD_ID__"
+#endif
+
+#else
+	#error"WRONG Batery Number"
+
+#endif
+
 
 #define PROCESS_NO_TASK			0x00
 #define PROCESS_NEEY			0x01
@@ -84,18 +196,6 @@ extern uint8_t alive_timer;
 #define PROCESS_STATUS			0x20
 #define PROCESS_PBALANCER		0x40
 #define PROCESS_OW				0x80
-
-#define ALIVE_TIMEOUT_10MS		15
-#define APP_CAN_BITRATE			500000UL
-
-#define __DEV_SIGNATURE__		0x12
-#define __SW_RELEASE__			0x0102
-#define SW_RELEASE_DAY			26
-#define SW_RELEASE_MONTH		03
-#define SW_RELEASE_YEAR			2025
-#define __SW_RELEASE_DATE__		((SW_RELEASE_DAY<<24 ) | (SW_RELEASE_MONTH<<18) | SW_RELEASE_YEAR)
-#define __SW_NAME__				"BMS-BLK-APP"
-
 
 
  /**
@@ -162,7 +262,6 @@ typedef enum
 }_SYS_ERR_CODES;
 
 
-#define MAX_LF280K_CELL_COUNT		22
 
 /* USER CODE END Private defines */
 
